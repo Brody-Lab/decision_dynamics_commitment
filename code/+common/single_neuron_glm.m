@@ -1,0 +1,1 @@
+function S = single_neuron_glm(neuronindex, trials, varargin)
