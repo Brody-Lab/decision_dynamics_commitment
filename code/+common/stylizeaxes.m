@@ -5,7 +5,7 @@ else
     a = varargin{:};
 end
 set(a, 'FontSize',27)
-set(a, 'ActivePositionProperty', 'outerposition')
+% set(a, 'ActivePositionProperty', 'outerposition')
 set(a, 'Color', 'None')
 set(a, 'TickDir', 'out')
 set(a, 'NextPlot', 'Add')
