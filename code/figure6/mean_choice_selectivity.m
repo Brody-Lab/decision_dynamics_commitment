@@ -9,7 +9,7 @@ for i = 1:nsessions
     filepath = fullfile(settings.folderpath, sessions.recording_id{i});
     S = load(filepath);
     PSTHs{i} = cellfun(@(x) x.psth, S.neurons);
-    brainareas{i} = cellfun(@(x) x.brainarea, S.neurons);
+    brainareas{i} = cellfun(@(x) string(x.brainarea), S.neurons);
 end
 PSTHs = vertcat(PSTHs{:});
 brainareas = vertcat(brainareas{:});

@@ -3,7 +3,7 @@ scriptpath = fileparts(matlab.desktop.editor.getActiveFilename);
 repo_root = fileparts(fileparts(scriptpath));
 addpath(genpath(repo_root))
 
-filepath = fullfile(common.locatedata, 'processed_data', 'figure5', 'analysis_2023_09_17a_cv.mat');
+filepath = fullfile(common.locatedata, 'processed_data', 'figure6', 'analysis_2023_09_17a_cv.mat');
 load(filepath)
 
 DeltaLL = struct;

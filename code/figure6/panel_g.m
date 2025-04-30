@@ -3,7 +3,7 @@ scriptpath = fileparts(matlab.desktop.editor.getActiveFilename);
 repo_root = fileparts(fileparts(scriptpath));
 addpath(genpath(repo_root))
 
-T = readtable(fullfile(common.locatedata, 'processed_data', 'figure5', ...
+T = readtable(fullfile(common.locatedata, 'processed_data', 'figure6', ...
     'analysis_2023_05_26b_recovery.csv'));
 wEA = T.fit_wEA;
 wDC = T.fit_wDC;
@@ -33,5 +33,12 @@ for i = 1:numel(brainareas)
     plot(median(x), max(ylim), 'v', 'markersize', 10, ...
         'markeredgecolor', 'none', 'MarkerFaceColor', colors.(brainareas(i)))
 end
+
+[p,~, stats] = kruskalwallis(T.EI, T.brainarea)
+[c,m,h,gnames] = multcompare(stats)
+tbl = array2table(c,"VariableNames", ...
+    ["Group A","Group B","Lower Limit","A-B","Upper Limit","P-value"]);
+tbl.("Group A")=gnames(tbl.("Group A"));
+tbl.("Group B")=gnames(tbl.("Group B"))
 
 rmpath(genpath(repo_root)) % restore search path
