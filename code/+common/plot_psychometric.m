@@ -1,4 +1,4 @@
-function plot_psychometric(choices, Deltaclicks, Echoices, varargin)
+function plot_psychometric(choices, Deltaclicks,varargin)
 % PLOT_PSYCHOMETRIC plots the observed and predicted psychometric functions in the same axes
 %   PLOT_PSYCHOMETRIC(`choices`, `Deltaclicks`, `Echoices`) takes the following inputs:
 %
@@ -29,14 +29,15 @@ function plot_psychometric(choices, Deltaclicks, Echoices, varargin)
 %       Deltaclicks = randi(80,500,1)-40;
 %       Echoices = 1./(1+exp(-Deltaclicks/5));
 %       choices = rand(500,1) <= Echoices;
-%       FHMDDM.plot_psychometric(choices, Deltaclicks, Echoices)
+%       commmon.plot_psychometric(choices, Deltaclicks, Echoices)
 validateattributes(choices, {'logical'},{'vector'})
-validateattributes(Echoices, {'numeric'},{'vector'})
 validateattributes(Deltaclicks, {'numeric'},{'integer', 'vector'})
 parser = inputParser;
 addParameter(parser, 'axes', [], ...
     @(x) validateattributes(x, {'matlab.graphics.axis.Axes'},{'scalar'}))
 addParameter(parser, 'edges', [-inf, -30:10:30, inf], ...
+    @(x) validateattributes(x, {'numeric'},{'vector'}))
+addParameter(parser, 'Echoices', [], ...
     @(x) validateattributes(x, {'numeric'},{'vector'}))
 addParameter(parser, 'legend', true, @(x) islogical(x) && isscalar(x))
 addParameter(parser, 'observed_CI_facecolor', zeros(1,3))
@@ -50,23 +51,31 @@ if isempty(P.axes)
 else
     axes(P.axes)
 end
-M23a.stylizeaxes
+common.stylizeaxes
 set(gca, 'fontsize', 18)
 groupindices = discretize(Deltaclicks, [-inf, -30:10:30, inf]);
 groupDeltaclicks = splitapply(@mean, Deltaclicks, groupindices);
 [obsv, obsvci] = splitapply(@(x) binofit(sum(x), numel(x)), choices, groupindices);
-pred = splitapply(@mean, Echoices, groupindices);
-handles = nan(2,1);
-handles(1) = FHMDDM.shadeplot(groupDeltaclicks, obsvci(:,1), obsvci(:,2), ...
-    'facecolor', P.observed_CI_facecolor);
+k = 0;
+if ~isempty(P.observed_CI_facecolor)
+    k = k + 1;
+    handles(k) = common.shadeplot(groupDeltaclicks, obsvci(:,1), obsvci(:,2), ...
+        'facecolor', P.observed_CI_facecolor);
+end
 if ~isempty(P.observed_mean_linespec)
     plot(groupDeltaclicks, obsv, P.observed_mean_linespec);
 end
-if ~isempty(P.predicted_mean_linespec)
-    handles(2) = plot(groupDeltaclicks, pred, P.predicted_mean_linespec, 'linewidth', 1.5);
+if ~isempty(P.Echoices)
+    pred = splitapply(@mean, Echoices, groupindices);
+    k = k + 1;
+    handles(k) = plot(groupDeltaclicks, pred, P.predicted_mean_linespec, 'linewidth', 1.5);
 end
 if P.legend && ~isempty(P.predicted_mean_linespec)
-    hlegend = legend(handles, {'observed 95%CI', 'predicted'}, 'location', 'best');
+    if ~isempty(P.Echoices)
+        hlegend = legend(handles, {'observed 95%CI', 'predicted'}, 'location', 'best');
+    else
+         hlegend = legend(handles, {'observed 95%CI'}, 'location', 'best');
+    end
     set(hlegend, 'position', [0.575 0.5, 0.35, 0.2]);
 end
 absxlim = ceil(max(groupDeltaclicks)/10)*10;
