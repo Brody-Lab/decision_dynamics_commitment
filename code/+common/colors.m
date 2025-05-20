@@ -30,3 +30,5 @@ C.leftinput = C.leftchoice;
 C.rightinput = C.rightchoice;
 C.input = [0.6941    0.4314    0.2745];
 C.nTc = [0.8039    0.4000    0.1961];
+C.pred = [0.0510    0.5373    0.2667];
+C.obsv = [0,0,0];
