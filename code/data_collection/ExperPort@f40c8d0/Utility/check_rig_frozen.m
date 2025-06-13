@@ -1,0 +1,145 @@
+%Run this file in a separate matlab while runrats is running a rat. It will
+%check if that session has frozen and if so it will restart matlab and
+%autoload the rat into runrats and start it automatically.
+
+while 1
+
+    %Read the last line of runrat's data log
+    runrats_log_file = which('runrats_datalog_temp.txt');
+    f = fopen(runrats_log_file,'a+t');
+    fseek(f,-100,'eof');
+    x = fread(f,100);
+    fclose(f);
+
+    newlines = find(x == 10);
+    lastline = char(x(newlines(end-1)+1:newlines(end)-1)');
+    wasstarted = strfind(lastline,'runstart');
+
+    if ~isempty(wasstarted)
+        %Last entry in runrats log was a runstart
+        rigid = bSettings('get','RIGS','Rig_ID');
+        lastupdate = bdata(['select lastupdate from ratinfo.rigtrials where rigid=',num2str(rigid)]);
+
+        if ~isempty(lastupdate{1}) && strcmp(lastupdate{1},'00:00:00')==0
+            %rigtrials table shows the rig is running
+            d = (datenum(datestr(now,'HH:MM:SS')) - datenum(lastupdate{1},'HH:MM:SS')) * 24 * 3600;
+
+            if d > 600
+                %Rig has been frozen for 600 seconds
+                disp('*** RIG IS FROZEN ***')
+                experport_path = bSettings('get','GENERAL','Main_Code_Directory');
+                if experport_path(end) == filesep
+                    experport_path = experport_path(1:end-1);
+                end
+                autoloadfile = [experport_path,'\Modules\@runrats\next_rat_to_autoload.mat'];
+                
+                if exist(autoloadfile,'file')
+                    %Update the autoload file with crash time
+                    last_crash_time = now;
+                    ratname = bdata(['select ratname from sess_started where rigid=',num2str(rigid),...
+                        ' and sessiondate="',datestr(now,'yyyy-mm-dd'),'" and was_ended=0']);
+                    
+                    if ~isempty(ratname)
+                        %We know which rat is running, update autoload file
+                        ratname = ratname{1};
+                        save(autoloadfile,'ratname','last_crash_time');
+                        
+                        %The last thing we want to do before we close
+                        %everything is rename the ASV folder so it doesn't
+                        %get overwritten. We can then use
+                        %find_orphan_ASVfiles.m to recover the data later.
+                        newasv = rename_ASV_folder(ratname,datestr(now,'yymmdd'));
+                        if isempty(newasv)
+                            %This can happen if less than 20 trials
+                            %occurred before the freeze since there won't
+                            %be an ASV folder made yet.
+                            disp('Unable to find or rename ASV folder')
+                            
+                        else
+                            %We should save an empty file with the name the
+                            %ASV folder points to. This will act as a
+                            %placeholder so the next data file will not
+                            %take its place and when we recover the ASV
+                            %data we have a place to save it to.
+                            
+                            tempdatafile = [newasv(1:end-4),'.mat'];
+                            x = 'This is a place holder data file.';
+                            if ~exist(tempdatafile,'file')
+                                save(tempdatafile,'x')
+                            end
+                            
+                            %Copy forward the previous settings file to a
+                            %name matching the place holder data file. This
+                            %will be overwritten when data is recovered but
+                            %it will be loaded when the protocol is restarted.
+                            tempsettingsfile = convert_data_to_settings_file(tempdatafile);
+                            
+                            experimenter = bdata(['select experimenter from ratinfo.rats where ratname="',ratname,'"']);
+                            experimenter = experimenter{1};
+                            oldsettings = find_recent_file_local('Settings',experimenter,ratname);
+                            
+                            copyfile(oldsettings,tempsettingsfile);
+                        end
+                        
+                        %The last last thing is to email the rat's owner(s)
+                        try
+                            message = cell(0);
+                            message{end+1} = ['Rig ',num2str(rigid),' froze while running ',ratname,' at ',datestr(now,13)];
+                            message{end+1} =  'Temporary data files have been moved to:';
+                            message{end+1} = newasv;
+
+                            IP = get_network_info;
+                            message{end+1} = ' ';
+                            if ischar(IP); message{end+1} = ['Email generated by ',IP];
+                            else           message{end+1} = 'Email generated by an unknown computer!!!';
+                            end
+                            message{end+1} = 'ratter\ExperPort\Utility\check_rig_frozen.m';
+
+                            set_email_sender
+
+                            owner = bdata(['select contact from ratinfo.rats where ratname="',ratname,'"']);
+                            if ~isempty(owner)
+                                owner = owner{1};
+                                owner = [',',owner,','];
+                                owner(owner == ' ') = '';
+                                cms = find(owner == ',');
+
+                                for i = 1:length(cms)-1
+                                    exp = owner(cms(i)+1:cms(i+1)-1);
+                                    sendmail([exp,'@princeton.edu'],[ratname,' Froze'],message);
+                                end
+                            end
+                        catch
+                            disp('Unable to email experimenters')
+                        end
+                        
+                        %Now we update rigtrials lastupdate time so we
+                        %don't automatically think we've frozen when
+                        %runrats restarts
+                        bdata('call ratinfo.update_rigtrials_lastupdate("{S}","{Si}")','00:00:00',rigid);
+                        
+                        %This kills all matlabs and will restart runrats
+                        %with an autoload command
+                        disp('*** Restarting Matlab ***');
+                        pause(1);
+                        cd(bSettings('get','GENERAL','Rigscripts_Directory'))
+                        system('restart_runrats_autoload.bat');
+                    else
+                        disp(['All sessions reported ended in sess_started table ',datestr(now,'HH:MM:SS')]);
+                    end
+                else
+                    disp(['File: \ExperPort\Modules\@runrats\next_rat_to_autoload.ma does not exist ',datestr(now,'HH:MM:SS')]);
+                end
+            else
+                disp(['Last udpate was ',num2str(d),'s ago ',datestr(now,'HH:MM:SS')]);
+            end
+        else
+            disp(['No lastupdate time in ratinfo.rigtrials ',datestr(now,'HH:MM:SS')]);
+        end
+
+    else
+        disp(['Runrats is not running a rat ',datestr(now,'HH:MM:SS')]);
+    end
+
+    pause(60 + rand(1) * 10);
+end

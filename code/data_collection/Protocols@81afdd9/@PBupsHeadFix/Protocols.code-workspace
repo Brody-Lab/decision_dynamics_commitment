@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../ExperPort/Plugins/@poissonbupsFR"
+		},
+		{
+			"path": "../../../Documents/Matlab/wstagnaro_rotation/pbups"
+		},
+		{
+			"path": "../../ExperPort/Plugins"
+		},
+		{
+			"path": "../../ExperPort/soundtools"
+		}
+	],
+	"settings": {}
+}

@@ -1,0 +1,49 @@
+function [obj] = Minimal(varargin)
+
+obj = class(struct, mfilename);
+
+%---------------------------------------------------------------
+%   BEGIN SECTION COMMON TO ALL PROTOCOLS, DO NOT MODIFY
+%---------------------------------------------------------------
+
+if nargin==0 || (nargin==1 && ischar(varargin{1}) && strcmp(varargin{1}, 'empty')), 
+   return; 
+end;
+
+if isa(varargin{1}, mfilename), % Most likely responding to a callback from 
+                                % a SoloParamHandle defined in this mfile.
+  if length(varargin) < 2, 
+    error(['If called with a "%s" object as first arg, a second arg, a ' ...
+      'string specifying the action, is required\n']);
+  else action = varargin{2}; varargin = varargin(3:end);
+  end;
+else % Ok, regular call with first param being the action string.
+       action = varargin{1}; varargin = varargin(2:end);
+end;
+
+GetSoloFunctionArgs(obj);
+
+%---------------------------------------------------------------
+%   END OF SECTION COMMON TO ALL PROTOCOLS, DO NOT MODIFY
+%---------------------------------------------------------------
+
+% ---- From here on is where you can put the code you like.
+%
+
+switch action,
+  case 'init'
+
+  case 'state35'
+
+  case 'state0'
+
+  case 'update'
+
+  case 'close'
+
+  otherwise,
+    warning('Unknown action! "%s"\n', action);
+end;
+
+
+

@@ -1,0 +1,29 @@
+%Training stage file.
+%Please use the session automator window exclusively
+%to edit this file.
+
+function varargout = [TRAINING_STAGE_FILE_NAME](obj, action, varargin)
+
+GetSoloFunctionArgs('func_owner', ['@' class(obj)], 'func_name', 'SessionModel');
+
+pairs = {'helper_vars_eval', true;
+    'stage_algorithm_eval', true;
+    'completion_test_eval', false;
+    'eod_logic_eval', false};
+parseargs(varargin, pairs);
+
+switch action
+    
+[TRAINING_STAGES_AREA]
+    
+end
+
+end
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%<HELPER_FUNCTIONS>
+[HELPER_FUNCTIONS_AREA]
+%</HELPER_FUNCTIONS>
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

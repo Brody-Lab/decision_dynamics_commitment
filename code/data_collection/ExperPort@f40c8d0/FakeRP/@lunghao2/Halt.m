@@ -1,0 +1,2 @@
+function [] = Halt(lh1)
+    

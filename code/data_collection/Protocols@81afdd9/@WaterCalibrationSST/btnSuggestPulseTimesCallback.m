@@ -1,0 +1,5 @@
+function btnSuggestPulseTimesCallback
+
+setDefaultPulseTime;
+
+end

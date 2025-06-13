@@ -1,0 +1,9 @@
+function [p] = timeout_count
+  
+  load_datafile('Qutab','duration_Discobj','070108a');
+  evs = saved_history.duration_discobj_LastTrialEvents;
+  rts = saved_history.duration_discobj_RealTimeStates; rts = rts(1:end- ...
+                                                    1);
+  p = parse_trial(evs,rts);
+  
+  

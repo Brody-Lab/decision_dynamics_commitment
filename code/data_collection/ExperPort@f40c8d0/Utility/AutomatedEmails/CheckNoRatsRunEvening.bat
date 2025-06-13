@@ -1,0 +1,1 @@
+matlab -r "checknoratsrun_evening"

@@ -1,0 +1,280 @@
+
+LynxTrig-RT Mini-HOWTO
+
+or, How To Use This Software to Trigger Sounds In Realtime
+
+Calin A. Culianu <calin@ajvar.org> <culianu@cshl.edu>
+February 06, 2006
+
+
+BEFORE YOU BEGIN
+----------------
+
+1. Requires LynxTWO-RT.o, the actual sound driver for the Lynx22 Sound Card.
+   To obtain this kernel module, checkout the latest CVS sources at:
+   
+   CVS ROOT:        :pserver:anonymous@rtlab.org:/cvs 
+   CVS Module name: LynxTWO-RT
+
+2. Make sure you have the latest version of this software (also best obtained
+   via CVS):
+
+
+   CVS ROOT:        :pserver:anonymous@rtlab.org:/cvs 
+   CVS Module name: LynxTrig
+
+3. Make sure you have RTLinux-3.1 or 3.2.  I use 3.2 but some people have
+   reported 3.1 works too.  You also need Linux Kernel version 2.4.xx.
+
+4. Make sure you have a LynxTWO (L22) soundcard!  This looks like this
+   from the 'lspci' command:
+
+   00:0b.0 Multimedia audio controller: Unknown device 1621:0023
+
+   PCI ID is 1621:0023.  If you have a slightly different card it may have a
+   different PCI ID, and is untested.  I can try adding the PCI ID to the card
+   db in the LynxTWO-RT driver, and you can try testing it.  Email me
+   if you have a slightly different card, and we can try to get it working.
+
+5. Try and give your LynxTWO card a dedicated interrupt.  This is to make
+   the realtime driver not waste time pending Linux IRQs.  If you are
+   sharing interrupts with Linux, you may experience latency and jitter,
+   although in practice even that is minimal.
+
+   Consult your motherboard manual about how to route IRQs.  Generally
+   speaking, this involves plugging the board into different slots
+   and/or turning off unneeded device drivers.  
+
+   To see what IRQ the Lynx board is on:
+
+   # cat /proc/pci 
+
+   and look around for the entry to the Multimedia
+   PCI device 1621:0023 (the Lynx board) and see what interrupt it was 
+   assigned.  
+
+   To see what interrupts are being used by drivers:
+
+   # cat /proc/interrupts
+
+   Play around with unloading drivers, moving the board to different slots,
+   etc until it is on an interrupt that no driver uses.
+
+
+USING THE LynxTrig-RT MODULE FROM MATLAB
+------------------------------------------
+
+# insmod ../LynxTWO/LynxTWO-RT.o
+# insmod LynxTrig-RT.o
+# ./LynxTrigServer
+
+Then, in matlab, use the Matlab/@RTLSoundMachine class as so:
+
+> mysm = RTLSoundMachine('mylinuxbox'); % where mylinuxbox is the hostname that LynxTrigServer is running on (your rtlinux box)
+
+> mysm = SetSampleRate(mysm, 44000);
+> mysm = LoadSound(mysm, 1, vector_of_doubles); % a 1xN vector of samples, or 2xN for stereo
+> PlaySound(mysm, 1);
+
+
+Note that SetSampleRate supports a rate up to 210000 (210KHz)!  I recommend
+you use the highest rate possible as high rates have very low latency.
+
+
+SETTING UP COMEDI
+-----------------
+
+See the comedi documentation (http://www.comedi.org) for instructions on 
+how to compile and install comedi.
+
+The relevant thing here is to make sure 'kcomedilib' is loaded 
+into the kernel:
+
+# modprobe kcomedilib
+
+And that your comedi device driver is loaded and 'configured'.  To do this,
+pick a device driver that is appropriate for your device (ni_pcimio for 
+most NI boards, comedi_parport for the parallel port, etc).
+
+The below example installs and configures the parallel port driver 
+(comedi_parport).  This drivers needs 1 parameter at configure-time, the
+IO port for the device.
+
+# modprobe comedi_parport
+# comedi_config /dev/comedi0 comedi_parport 0x378
+
+To configure the parallel port at IO address 0x378 on /dev/comedi0.  
+
+Consult your motherboard manual to figure out if you parallel port is
+enabled and at what IO address it lives.  Your BIOS may also have this
+information.  For most PCs I think 0x378 is correct, however you parallel
+port may or may not actually be enabled (check your BIOS settings).
+
+
+TESTING YOUR COMEDI DEVICE
+--------------------------
+
+You can use the program "ComediClientServer" that I wrote to test
+comedi devices.  It lives at CVS:
+
+Root:    :pserver:anonymous@rtlab.org:/cvs
+Module:  ComediClientServer
+
+Brief command list to retrive and compile this program.
+
+# cvs -d :pserver:anonymous@rtlab.org:/cvs co ComediClientServer
+# cd ComediClientServer
+# qmake
+# make
+
+Next, run the server:
+
+# rmmod LynxTrig-RT   (Prevents errors since this module/program might be 
+                       using comedi too)
+
+# Server/ComediServer
+
+It listens on port 3335 for connections.  Run the client (you need X 
+and Qt for this to work):
+
+# Client/ComediClient
+
+Specify 'localhost' in the server name box and click "connect".
+
+If it crashes, try it again.  I had real problems getting this program to work
+OK for localhost connections, probably due to some communications bug.
+
+Once you connect to localhost using this ComediClient program, you should
+be able to control the IO lines and so this is a good tool for testing
+out your IO line connections.
+
+The LEDs are lit when DIO lines are high, and they are dark red when
+lines are low.  Use the checkboxes to toggle individual channels between
+INPUT and OUTPUT mode.  For our purposes, you should only really want to
+be in INPUT mode since that's the mode used to trigger IO lines in LynxTrig-RT.
+
+
+
+ENABLING HARDWARE TRIGGERING IN LynxTrig-RT, MODULE PARAMETERS, COMEDI, ETC
+---------------------------------------------------------------------------
+
+Now that you are happy that everything runs, try installing the
+LynxTrig-RT module into the kernel, but this time enabling
+comedi_triggers (hardware triggers).
+
+
+# insmod LynxTrig-RT.o comedi_triggers=1 num_trig_chans=8  first_trig_chan=0
+
+This loads the module into the kernel, and tries to use the COMEDI
+device configured on /dev/comedi0.  It takes (num_trig_chans=8) 8 DIO
+lines beginning at first_trig_chan.
+
+** If that device is not configured, the module load will fail! **
+
+Check out the comedi documentation at http://www.comedi.org. 
+
+If you don't have a DIO card, you can always use the parallel port
+as your IO lines.  Note that not all the pins on the parallel port
+work as DIO lines.  See the comedi/drivers/comedi_parport.c file in the comedi
+sources!  It actually contains documentation on which pins of the parallel
+port are used.  You want to use data0-data7 for a total of 8 DIO lines.  
+
+They will be auto-configured for input for you (so you can ignore the
+comment about their being configured for output).
+
+
+HOW SOUND TRIGGERING WORKS WHEN YOU USE DIO LINES
+-------------------------------------------------
+
+Basically, the DIO lines specified in the range:
+
+[ first_trig_chan, first_trig_chan+num_trig_chans )
+
+Will be read every 1/10th millisecond.  These DIO lines get expanded
+to form a binary pattern.  For 8 lines, if they are all low, the pattern
+would read:
+
+0000 0000
+
+
+As soon as the first line is set high, the pattern would read:
+
+0000 0001
+
+This corresponds to the integer value '1'.  
+
+This tells the LynxTrig-RT module to trigger sound '1'.
+
+Now, if you set the first and second line high, binary pattern:
+
+0000 0011
+
+Would result.  This would correspond to integer value '3'.  This
+triggeres sound '3' to play.
+
+The fourth and second IO line:
+
+0000 1010
+
+Would be the binary pattern for '6'.  This would play sound '6'.  
+
+You get the idea.
+
+NOTE:  It is important that all the DIO lines you are using are connected to
+a valid input source.  This is because DIO input lines "float high" so if a 
+few of them are connected to nothing, they will look high to the LynxTrig-RT
+module and thus will always produce a '1' in their bitposition!
+
+
+UNTRIGGERING SOUNDS (STOPPING THEM PREMATURELY)
+-----------------------------------------------
+
+To 'untrigger' a sound, you need to set the last IO line HIGH:
+
+1000 0011
+
+This 'untriggers' sound 000 0011, or it untriggers sound 3.
+
+Untriggering just means to prematurely stop a sound.  Normally sounds
+play to completion unless they are untriggered.
+
+
+*** NB: Sound ID's are assigned from the MATLAB side when you do your
+    call to LoadSound() ***
+
+NOTE: Stop-ramping is implemented to gracefully stop sounds.  But to
+use stop-ramping, your Matlab-side LoadSound() call needs to specify 5
+total parameters:
+
+LoadSound(sm, 1, mySoundVector2xN, 'both', tau_ms);
+
+The fourth parameter is just which speaker to play the sound from.
+'left', 'right' or 'both' are valid parameters.
+
+The last parameter, tau_ms, is the amount of time in milliseconds to
+ramp the sound from full volume to 0 volume.  A good value is 20.
+Anything less and the sound still sounds too abrupt when stopped.
+
+
+PLAYING MULTIPLE SOUNDS SIMULTANEOUSLY
+--------------------------------------
+
+By default, up to 4 sounds can play concurrently.  Simply trigger them
+one after the other and listen in polyphonic wonderment.  However,
+note that the channels are mixed using summation -- so if you play a
+few loud sounds together you can get distortion due to their added
+volumes producing a wave that is beyond the dynamic range of the card.
+This sounds to the ear like a bunch of really noisy buzzing clicks
+(sort of how distortion works on an electric guitar).  Good for rock
+n' roll, bad for science!
+
+
+CONCLUSION
+----------
+
+Email me with any questions.  This howto was put together in about 10 minutes,
+so I probably didn't cover any and all issues people might have.
+
+
+-Calin
+

@@ -1,0 +1,19 @@
+Modified on 03-19-03
+
+Contains the opt and blob files for analysis and other files for using the latest version of exper on the rig ONIX.
+
+please ask Sachin or Zach for further clarifications
+
+
+Modified on 09-17-03 (ZFM)
+
+Fixed some problems with reading AVI files
+Dialog boxes and warning messages make some more sense now.
+Still, please remember to re-open all windows (especially opt) after loading an old experiment.
+
+
+Heavily modified by CDB starting April 05. Major addition is the virtual RP Box. Also, 3 sounds
+can be defined per trial, not two. New save/load settings and save/load data methods that assign
+automatic time-stamped filenames. Top-to-bottom overhaul -- better yet, a rewrite starting
+from zero -- likely coming soon.
+

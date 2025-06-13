@@ -1,0 +1,4 @@
+// Microsoft Developer Studio generated Help ID include file.
+// Used by HalTest.rc
+//
+#define HIDC_CALIBRATE                  0x80c9082a    // IDD_ADAPTER

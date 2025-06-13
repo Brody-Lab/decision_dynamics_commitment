@@ -1,0 +1,11 @@
+
+Remaining things to be done:
+
+* implement the dout_callback and trigout_callback
+* implement sound from those callbacks
+* implement the read events stuff and all that
+
+* implement the hardware interface version
+
+* implement a sound object
+* implement the interface to the sound object hardware

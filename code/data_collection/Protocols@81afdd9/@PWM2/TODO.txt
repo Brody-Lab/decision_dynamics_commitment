@@ -1,0 +1,8 @@
+[x] make `wait_for_cpoke` move into a `settling_in` state instead of into `cpoke`. this will make it easier to compute when the animal actually began fixation and the waves were triggered.
+[x] decouple the light guide from the go cue. idea: go cue is 0.05 seconds long, and the guide turns on shortly after that. allows us to push light guide further into future without changing the go cue itself.
+	- let's reimplement the GUI portion, then move to the SMA
+[x] make Sa/Sb sound waves conditionally trigger on sasb_on
+[ ] ensure that the go_cue_wave will never trigger before cp_fixation_wave
+[ ] move functionality of adjusting wave and fixation lengths out of SMA and into ShapingSection perhaps -- this would mean make SMA cleaner.
+	- would this require more SPHs, like 'cp_fixation_dur_effective'? might not be worth it then
+[ ] is there a way of automating the construction of training_section_vars? via e.g. get_sphandle?

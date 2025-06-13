@@ -1,0 +1,38 @@
+function [] = plot_psychometric_trial(rat, task, date)
+
+load_datafile(rat, task, date(1:end-1), date(end));
+
+% get tones
+t1 = saved.ChordSection_tone1_list;
+t2 = saved.ChordSection_tone2_list;
+left = 1; right = 1-left;
+tones = zeros(size(t1));
+
+sides = saved.SidesSection_side_list;
+tones(find(sides == left)) = tone1_list(find(sides == left));
+tones(find(sides == right)) = tone2_list(find(sides == right));
+
+% now get psychometric trial
+t1r = saved_history.ChordSection_Tone1_random;
+t2r = saved_history.ChordSection_Tone2_random;
+psych = intersect(find(strcmp(t1r,'on')), find(strcmp(t2r,'on')));
+contigs = make_contigs(psych);
+if cols(contigs) >1
+    sprintf('Found > 1 contig of randomised trials; taking only the last one');
+    trials = contigs(cols(contigs));
+end;
+
+sprintf('Got %i trials', numlength(trials))
+% now make sure only the wanted trials are in the dataset
+tones = tone(trials);
+hh = eval(['saved.' task '_hit_history']);
+
+hh = hh(trials);
+tones = tones(trials);
+
+[dummy bins] = generate_bins(350,860, 8);
+
+reps = zeros(1,rows(bins)-1); tally = zeros(1, rows(bins)-1);
+for k = 2:length(bins)
+    idx = intersect(find(tones > bins(k-1)), find(tones <= bins(k)));
+end;

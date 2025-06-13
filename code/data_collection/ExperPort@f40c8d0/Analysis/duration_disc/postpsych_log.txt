@@ -1,0 +1,21 @@
+postpsych log
+---------------
+
+Compare impairment of ACx1 and ACx2 when
+1. Only valid psych sessions are used - for both hrate and weber
+2. All sessions are used - for hrate and weber.
+
+- Implemented postpsych in all hrate files, not sure about weber files
+- ran lesion_cvg2impair to store data for postpsych=1
+        - stark and bilbo threw error, not sure why
+        - error for stark
+WARNING: Stark: pstruct not found; setting to NaN
+****loadpsychinfo:Stark:psych_after ****
+loadpsychinfo:postpsych OFF:Using S#: 
+WARNING: Stark: pstruct not found; setting to NaN
+WARNING: Stark: failedfit_dates not found; setting to NaN
+WARNING: Stark: replongs not found; setting to NaN
+WARNING: Stark: tallies not found; setting to NaN
+WARNING: Stark: concat_tones not found; setting to NaN
+WARNING: Stark: concat_side_choice not found; setting to NaN
+

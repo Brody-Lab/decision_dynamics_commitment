@@ -1,0 +1,87 @@
+
+This file contains a list of things to do to port Exper from Windows
+to the Mac on Matlab 7 (Release 14).
+
+(1) In ROOT/mystartup.m, make sure all the directories say "filesep"
+rather than "/" or "\"
+
+
+(2) In ROOT/mystartup.m, make sure the line setting the data path
+preference says
+	setpref('carlos', 'control_datapath', [pwd filesep 'data'])
+
+   Do the same in ROOT/Modules/Control.m
+
+
+(3) As a workaround for the problem with popup menus that Matlab 7 has
+(their bug, not ours), insert at the end of
+ROOT/Utility/ModuleFigure.m
+
+   hP = uipanel;
+   set(hP, 'Units', 'normalized', 'Position', [0 0 1 1]);
+   set(hP, 'Tag', 'ContainerPanel');
+   set(h,'ResizeFcn', ['myhP = findobj(gcf, ''Tag'', ''ContainerPanel''); ' ...
+    'set(myhP, ''Units'', ''pixels''); set(myhP, ''Units'', ''normalized'')']);
+
+   This produces a parent panel under which all other controls in the
+   figure will be placed. It also adds a workaround for panel resizing
+   when the figure is resized.
+
+(4) In ROOT/Utility/SetParam.m, at line 153, change the line that says
+
+    set(h(n),'background',get(get(h(n),'parent'), 'color'));
+
+   into one that says
+
+    set(h(n),'background', get(get(get(h(n),'parent'),'parent'), 'color'));
+
+   This is because there is now an extra parent (the ContainerPanel,
+   see (3) above) in between a control and the Figure that it is in.
+
+
+(5) In ROOT/Utility/InitParamUI.m, insert the line
+
+    hP = findobj(fig, 'Tag', 'ContainerPanel');
+
+    after the first few lines of the function (i.e., after 'fig' has
+    been defined and has acquired a value).
+	
+   In lines 48 through to the end (i.e., after "switch style", make
+   sure that all uicontrols have hP as their parent.
+
+
+(6) Do
+
+   >> warning('off','MATLAB:dispatcher:InexactMatch')
+
+   This so that case-mismatched filenames don't cause alarum.
+
+(7) In ROOT/Utility/uigetfolder.m, insert the following lines at the
+    top of the function (i.e., completely rewrite the function to
+    this):
+
+    if nargin < 2, initial_path = []; end;
+    if nargin < 1, title = []; end;
+    folder = uigetdir(initial_path, title);
+    return;
+
+
+(8) In Line 714 of ROOT/Modules/Control.m, replace the part that says
+	
+   	w = dir([GetParam(me,'modpath') '\*.m']);
+   with	
+   	w = dir([GetParam(me,'modpath') filesep '*.m']);
+
+   (i.e., make sure we have a filesep, not a Windows-specific \).
+
+
+(9) In line 5 of ROOT/FakeRP/@lunghao1/Run.m,
+
+   replace the lowercase "run(lh1.rp_machine)" with an uppercase
+   "Run(lh1.rp_machine)"
+
+(10) In line 10 of ROOT/FakeRP/MakeSigmoidSwoop2.m, replace
+   '\PPFilter.mat' with
+   filesep 'PPFilter.mat'
+
+ 

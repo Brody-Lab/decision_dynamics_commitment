@@ -1,0 +1,13 @@
+
+* protection against range and double value errors in GUIs
+
+* SoloFunction should change to SoloFunctionArgs
+
+* Watch out for calling SoloFunction *after* function declared itself
+  some vars-- they get erased! Fix this behavior...
+
+* Added _history behavior on GetSoloFunctionArgs (make it a with
+  history flag?)
+
+* add bottom and top to Cpokes plot; and add cpokes histogram with key. Then
+  we're done...

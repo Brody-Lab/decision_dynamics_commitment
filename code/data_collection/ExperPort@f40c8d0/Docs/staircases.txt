@@ -1,0 +1,33 @@
+
+Suppose you have a parameter, v, and that every time the animal does a
+correct trial, you increase it by s; and every time the animal does an
+incorrect trial you decrease it by m.
+
+Then, on average, the parameter value has a fixed point when the
+performance P (prob correct) satisfies: 
+
+    P s  = (1 - P) m   ==>   m = Ps/(1-P)  ==>  s = (1-P)m/P
+
+This fixed point is stable if the s direction decreases performance,
+and the m direction increases performance.
+
+Now suppose you want a target performance of P. But your actual
+performance is p. You want to gradually move the value of a
+parameter. Assuming P and p are fixed, and that m and s have been set
+for a desired performance of P, then on each trial
+
+   dv  = ps - (1-p)m  = s(p - (1-p)P/(1-P)) = s(p-P)/(1-P).
+
+Thus if we are performing at 80%, and target performance is 75%, dv on
+each trial will on average be s(0.8 - 0.75)/(1-0.75) = s/5.
+
+If we want to gradually move v from 8 to 5.66 in log space over 750
+trials, 
+
+  Dv = 8/5.66 = 1.4134 in 750 steps of s/5, i.e. in 150 steps of s.
+
+  1.4134^(1/150) = 1.00231.
+
+
+That is, divide v by 1.00231 every hit; multiply v by 1.00231^4 (which
+is 1.00927) every miss.    

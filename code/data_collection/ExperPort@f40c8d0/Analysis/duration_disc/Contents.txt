@@ -1,0 +1,419 @@
+--------------------------------
+Setting up new rats
+--------------------------------
+change_ratname_settings:    Loads settings files for the specified ratname and date, and changes the ratname to the specified rat (from 'template_rat')
+newrat_setup:               Uses template_rat files for classical2afc (LEFT AND RIGHT) and specified final protocol for rat, and uses these to make settings files for the new rats.
+
+--------------------------------
+The basics
+--------------------------------
+
+load_datafile: loads Solo data file
+load_settings: loads Solo settings file
+
+available_dates: Returns the dates for which data for a given
+                 rat/task combination are available on the current
+                 computer  
+
+parse_filename:  Given a filename in standard convention, breaks it
+                 down into directory, ratname, task, date, and
+                 extension.
+get_files:      Finds all datafiles in the date range specified for given
+                 rat and returns the dates of these files
+
+get_fields:     Gets specified fields from a datafile for a date range or 
+                date set provided. Each parameter will be assigned as a separate
+                variable in the user's namespace and data across days
+                will be contained in a single variable per param.
+
+get_method_fieldnames: Returns the fieldnames associated with a method (e.g. ChordSection, VpdsSection) (needs a "saved" struct)
+
+rat_task_table: Master table with rat names, tasks, dates for different
+                training epochs. Used by all analysis scripts to lookup
+                rat-related info (e.g. task)
+
+shraddha_runner:Sandbox file to run scripts in
+
+--------------------------------
+Looking at data from a single session
+--------------------------------
+sessionsummary: Runs a number of tests for the specified date and plots graphs 
+                for various performance/session metrics ---- GUI one-stop shop
+
+session_view:   What sessionsummary calls to do the gruntwork
+
+view_automation_progress: Shows value of last_change counter, a counter used in
+                session automation, as a function of trial #. Good for troubleshooting
+                problems with session automation.
+
+psychometric_curve: Generates psychometric curve using matlab's glmfit. 
+
+show_side_sampling: Plots sides_list and calculates lprob for windows of 20 trials. 
+                Also plots tones against sides list - sanity check to ensure tones 
+                are presented according to sides list.
+
+triallen_influence: Plots probability of side choice as function of trial length.
+                Used to check if rats are making decisions based on durations other
+                than auditory cues
+
+flipped_sides:  Plots the effective duration and pitch for any given trial.
+                Especially useful in side-flipped rats (instead of the usual left-low,
+                right-high, these rats have left-high, right-low).
+
+Scripts computing specific metrics:
+    lprob.m
+    hit_rates.m
+    timeout_count.m
+
+--------------------------------
+Looking at data across a range of dates
+--------------------------------
+Saving:
+--------
+save_psychinfo:     Buffers params used in analysis of psychometric sessions
+                from all psych sessions for given rat. Uses rat_task_table
+                to get its dates
+
+save_logdiffinfo:   Buffers params used in analysis of sharpening stage
+                    from all sharpening files for given rat. Uses rat_task_table
+                to get its dates
+
+Getting fields from specified date set:
+----------------------------------------
+Use 'get_fields' method with use_dateset = 'given'
+
+Plot metrics across days
+----------------------------------------
+plot_hitrate:   Plots session-averaged hit rate for a range of given dates. Can load psych_before, psych_after, span_surgery dates too.
+hitrate_raw_xsessions_onerat: Plots session-averaged hit rate for a range of given dates, for one rat only.
+psychnums_over_time: Plots 25, 50, and 75% values for a rat's psychometric curve over time.
+numtrials_oversessions: Plots # trials / session for a range of dates
+
+Which post-lesion dates to use for hrate or weber?
+-----------------------------------
+surgery_effect_hrate and webers_beforeafter provide differences in hit rate before and after lesion.
+'after' can be defined in one of many ways:
+
+**SESSION FILTERING
+------------------
+List of filters
+----------------
+    1. Filter 1 - postpsych
+        a. postpsych=1 ; use only those sessions with sufficient number of psych trials. trials only come from such sessions.
+        b. postpsych=0 ; trials can come from any sessions post-lesion
+    *** NOTE: THere is currently no option to look at non-psychometric sessions,
+    *** or non-psychometric trials in a psychometric session.
+    2. Filter 2 - lastfew, dstart, dend --- Works on TOP of postpsych filter
+        a) lastfew - use lastfew sessions of dataset
+        b) dstart:dend - range of sessions starting from session #dstart to session #dend.
+Which files are these filters set in?
+-------------------------------------
+    surgery_effect_hrate (postpsych)
+    webers_beforeafter (postpsych)
+    surgery_effect
+    loadpsychinfo (postpsych, lastfew, dstart, dend)
+    ...and consequently anybody who calls these three files
+
+Analyzing psychometric curve 
+-----------------------------
+Also see "logistic_fit" and "logistic_setbound" under "Utilities".
+
+psych_curve_overlay: Superimposes multiple psychometric curves each in different colour.
+
+psych_oversessions: Given data pre-buffered over sessions, computes weber ratio & logistic
+                fits for individual sessions and also an overall weber ratio. Returns all params
+                obtained from calculations
+
+loadpsychinfo:  Shows pooled psych curve for before or after lesion.
+                Also shows trendline for Weber ratio and bias over sessions.
+                Plots values for misc performance measures (like hit rate).
+
+psych_tally:    Prints # sessions in a rat's 'psych_before' or 'psych_after' file to command-line; 
+                takes list of ratnames (cell).
+
+surgery_effect: Compares a host of performance metrics from two date ranges: before-surgery 
+                and after-surgery. This is the script to use to check whether there is a sig
+                difference in a metric of interest as a result of surgery/lesion.
+
+surgery_effect_ratset: Runs surgery_effect for a set of rats and shows the resulting significance chart
+                for various metrics as well as param estimates from logistic fit
+
+surgery_effect_comparesets: Runs surgery_effect_ratset for specified two sets, plotting resulting data on the same graph.
+
+
+sessioncount:   Used to look at the # psychometric sessions before and after surgery
+                (calls session_tally on "before" and "after" datafiles)
+
+superimpose_psychs: Given a date range, draws psychometric curves from each session all superimposed
+                on one graph. Also plots histogram of weber ratios and biases.
+                Will plot all curves either on the same figure or on individual figures.
+                Can also align all graphs to zero.
+
+superimpose_psychs_driver: For a specified set of rats, plots the first/last X sessions after/before
+                surgery. Each day (e.g. first day post, second day post) gets its own figure 
+                but all rats' data from a given day are superimposed on one figure. 
+
+triallen_influence_run & triallen_influence_global:
+                Looks at side choice as fn trial length for many rats
+                and across specified date range
+
+session_tally:  Opens a file saved using either save_logdiffinfo or save_psychinfo
+                and returns the # sessions, start and end dates of the dataset stored
+
+hitrate_breakdown: Returns averaged hit rates for psychometric and non-psychometric trials, given
+                a saved dataset (e.g. all pre-surgery psychometric sessions saved in "psych_before.mat"); 
+                hits are averaged by session.
+
+average_psych_curves: saves and loads data for psychometric sessions for all rats in a given area/task group.
+                Averages 'before' and 'after' curves across all rats in a group and computes
+                significance for residuals between 'before' and 'after'.
+
+Impairments
+------------
+Slope-bias method:
+------------------
+fit_slopebias:      Driver tool. Gets slope and bias for before/after curves and plots various impairment metrics
+
+Script trail:
+    fit_slopebias
+        +--- fit_singlepsych
+                +--- comparefits
+                        +--- sigmoidslope --> slope
+                        +--- normalizedbias --> bias
+
+Data fitting
+--------------------------------------
+comparefits:        compares Q-value for linear and sigmoidal fit
+linear:             implementation of line: y=mx+c
+logistic_fitter:    see both 'init' and 'goodness_of_fit' case statements. 
+qval_test:          tests Q-value computation in variety of ways (see subroutines)
+sigmoid4param.m:    implementation of 4-parameter sigmoid:  y=y0+a./(1+ exp(-(x-x0)./b));
+
+Learning effects 
+--------------------------------------
+hrate_over_time: (Within session only) Given a binary hit_history array, will compute the hit rate for successive (ie nonoverlapping) windows of specified size
+psych_over_time: Given session data, plots psychometric curve for different non-overlapping windows of trials, showing time in a horizontal set of panels.
+learning_over_sessions: Plots hit rate either in overlapping or nonoverlapping windows across sessions. Will also plot the last session PRE surgery
+                and juxtapose it with first session AFTER surgery.
+first_day_outlier_test: Plots distribution of session averages BEFORE lesion and marks session averages AFTER lesion
+                on this graph. Does POST fall outside sd of pre averages?
+  
+Analyzing rats lesioned during single-pair discrimination
+----------------------------------------------------------
+logdiff_hitrate: Shows performance of rat at various sharpening levels 
+                in chunks of weekly progress
+
+surgery_effect_fixedlog: Like surgery_effect, shows before/after aggregated performance
+                for a stimulus pair.
+
+calc_hrates (part of logdiff_hitrate): Calculates mean and sem accuracy for pairs with different 
+                distances from the midpoint
+
+Monitoring training progress
+----------------------------------
+showprogress2final: Allows aggregation and viewing of training progress across weeks in different phases:
+                1) From locsamp 2 final, 2) From final to sharpening.
+
+events_summary: Computes duration of trial epochs (not training epochs) across sessions
+                (e.g. average duration of wait_for_apoke across days)
+
+timewatch:      Shows duration of session for each rat over a specified range of dates (default: past one week).
+                Shows data for all currently-training rats by default.
+
+time_per_state: Shows distribution of time spent in various states (wait_for_cpoke, reward, iti, etc).
+                Shows plots of average duration of each state as well as total time spent in each state
+
+sessionduration:Shows "duration of session" & "# trials done" by each rat on a given day
+
+Steady-state behaviour analysis
+------------------------------------
+    trial_duration:     Shows histogram and percentile distribution of trial lengths
+
+    ITI & poking 
+    ----------------------
+    pokes_during_iti:   Returns  start/end times of cpokes/lpokes/rpokes during all ITI states
+                       (iti, dead_time, extra_iti)
+    deadtime_pokestats: Uses pokes_during_iti to give a sum of time spent poking in each trial (not # pokes)
+    deadtime_length:    Deadtime statistics; shows duration of deadtimes (defined as ITI/punishment states and deadtime)
+                        Also shows time spent poking during deadtime and correlation between deadtime duration And time spent poking
+    Unresponsiveness
+    ----------------------
+    wait_states:        Plots duration of wait_for_cpoke and wait_for_apoke as fn of
+
+    Timeouts
+    ----------------------
+    cpoke_length:       Plots duration of rat's center pokes on given day and also shows histogram view 
+    timeout_count:      Counts # timeouts in each trial showing distribution of timeout # across session
+    mark_cout_type:     Categorizes each trial based on the state in which timeout first occurred/whether timeout did not occur.
+    timeout_rate:       Given events across multiple sessions, computes the itmeout rate for each session.
+
+    Reaction times 
+    ---------------------
+    rxn_time:           Takes pstruct; returns time from last valid Cout to first side poke for each trial.
+    rxn_time_batch:     Does the above for a range of dates
+    tone_rxntime:       Plots reaction time as a function of tone duration
+    rxn_time_driver:    Driver file. Runs tone_rxntime for all rats in specified array. Depending on option set, will store reaction time data in output files for later analysis
+
+    Licking
+    ----------------------
+    lick_analysis:      Compares lick counts and inter-lick intervals for two sets of indices
+                        (e.g. left_correct and right_correct). Plots histograms for them.
+--------------------------------
+Histology
+--------------------------------
+mgb_lesion_table:       FIrst attempt at systematizing the scoring of lesions. Medial geniculate
+                        lesions are scored and stored in matrix form. Simple utilities show lesion type
+                        in patchwork-matrix form and determine intersection of lesion extent.
+
+Files required:
+----------------
+<root>: SoloData/Data/Shraddha/Histo/ACx/
+
+1) File with coordinates for ROIs spanning auditory R/C extent.
+Name: <root>/polymark/polygon_coords_ALL.txt
+Format: Applescript-generated file with five-column space-separated plaintext format
+% column 1: brain area abbreviation - Prh, AuD, AuV, A1, TeA, Ect, S1
+% column 2: slice # in the extracted set of the rat brain atlas
+% column 3: hemsiphere - L, R
+% column 4: x-value of polygon vertex
+% column 5: y-value of polygon vertex
+Example:
+Prh 1 R 100.0322265625 243.935546875
+Prh 1 R 156.1611328125 252.322265625
+Prh 1 R 153.58056640625 220.064453125
+Prh 1 R 104.54833984375 200.064453125
+
+2) File with lesion coordinates for each rat.
+Name: <root>/<ratname>/<ratname>_coords.txt
+Format: Applescript-generated file with four-column space-separated plaintext format
+% column 1: slice # in the extracted set of the rat brain atlas
+% column 2: hemsiphere - L, R
+% column 3: x-value of polygon vertex
+% column 4: y-value of polygon vertex
+Example:
+1 L 675.705078125 354.14990234375
+1 L 661.419921875 339.2919921875
+1 L 670.5625 315.2919921875
+1 L 662.5625 286.150390625
+
+3) Matlab input file with coordinates for each ROI.
+Name: <root>/polymark/<ROI>_coords.mat
+Format: Contains a single struct named "<ROI>_coords".
+Keys are of format [L or R][slice number]
+Values are: px2 arrays of vertex coordinates for ROIs for that hemisphere/slice number
+Example:
+L12: [5x2 double]
+R13: [5x2 double]
+L13: [5x2 double]
+R14: [5x2 double]
+L14: [6x2 double]
+R15: [5x2 double]
+** Hems/slices without any ROI present don't have a key value.
+
+4) Matlab input file with coordinates for each rat.
+Name: <root>/<ratname>/<ratname>_coords.mat
+Format: Contains a single struct named "lesion_coords".
+Key/values of struct are in the same format as those of the file in (3).
+
+5) Array indicating whether at each slice, rat has lesion, has no lesion (X), or has no data (N).
+Name: <root>/scoring/scoring_0806.mat
+Format: Cell array named 'ACx_NXmarked__LEFT' or 'ACx_NXmarked__RIGHT'.
+Entries are: odd-numbered: Rat name
+             even-numbered: 33x1 char where character i indicates whether at slice i, this rat has
+             '1' - data available & lesion exists
+             'X' - data available & lesion does not exist
+             'N' - no data available
+
+6) File with "% coverage" information for a set of rats
+Name: <root>/lesion_coverage_calc.mat
+Format: R structs, one per rat, named "<ratname>_lesioncvg".
+    - Format of <ratname>_lesioncvg:
+    Key: ROI
+    Value: Struct with (% coverage), (# ROI points), (# points overlap) for each hem/slice in set for this ROI.
+    (for more details, see documentation in lesion_slice_coverage.m, whose output this is)
+
+
+Scripts
+----------------
+lesion_marker:          Reads lesion-presence file (file 5) and graphically depicts lesion presence/absence/n.a.
+                        across a tissue set for each task group
+lesion_group_cvgdistr:  Interactive graphical viewer for (% coverage) for each slice of a set of brain areas.
+
+*** NOTE: Slices 2 and 3 have been switched in the original ACx template files.
+lesion_slice_coverage.m is the one that swaps the two! ****************
+lesion_slice_coverage_runner: 
+                        Runs lesion_slice_coverage for all combinations of rats and ROIs, and stores the resulting
+                        (% coverage), (# ROI points), (# points overlap) in lesion_coverage_calc.mat.
+lesion_slice_coverage:  Computes pct. coverage of 'roi' for each slice in a given set of slices
+                        for a given rat (ratname). Returns (% coverage), (# ROI points), (# points overlap) per slice in set.
+                        Uses NaN when lesion and/or ROI not found at a given hem/slice.
+lesion_slice_gruntwork: Does the actual work of computing # points overlapping between the lesion
+                        extent and roi extent in a given slice. Returns (% coverage), (time taken by
+                        operation), (# points overlap) and (# ROI points in this slice)
+(high-level to low-level: lesion_slice_coverage_runner > lesion_slice_coverage > lesion_slice_gruntwork)
+
+lesion_readdata:        Reads rat coordinates in plaintext (file 2) and saves in Matlab format (file 4).
+lesion_histofile_readdata:
+                        Reads output of polygon_coords.scpt (file 1) and saves it in Matlab struct format (file 3).
+lesion_polyex_resolution:
+lesion_inpolyex:
+
+--------------------------------
+Utilities
+--------------------------------
+bin_hits:           Bins data into a provided set of bins using "bin-center" method, and returns the average quantity (and sem) in each bin
+bin_side_choice:    Bins data into a provided set of bins using "bin-center" method, and returns the count in each bin, as well as the number of "right" side choices in each bin.
+cellstr_are_equal:  Returns true if two cells contains the same strings in the same order.
+datebreaks:         Given cell of dates (d-by-1), returns b=d-by-1 binary array where b(i)=1 where if d(i)-d(i-1) > 1 day.
+getdate:            given an offset of number of days, returns the date (today is 0; yesterday is -1, tomorrow is +1, etc.,)
+get_weber:          Given x and y data for a logistic curve, returns the 16%,50% and 84% stimulus value and the weber ratio.
+logistic_fitter:    All files should use this method to compute weber ratio using a logistic fit where endpoints are determined by rat's performance.
+logistic_setbound:  Logistic function used to fit rat psychometric data to a logistic curve.
+                    Used by logistic_fitter.m as its function to fit to.
+percentile:         Returns value UNDER which p percent of the data lie
+percentile_plot:    Plots given distribution against that from a Normal distribution; does KS test to determine normalcy.
+permutationtest_diff: Given two arrays, does permutation test to determine if difference of averages is sig
+                    different from zero. Assumes equality of variance assumption is met.
+rankplot:           Given identifiers and ranks, depicts ranking in graphical form. Will also do two groups;
+                    in 2 group case, compares ranking among both groups
+side_choice:        Returns whether rat chose 'LEFT' or 'RIGHT' when given side_list and hit_history
+sortstruct:         Sorts a struct alphabetically by fieldname
+struct2array:       Vertically concatenates struct data according to the order "forder" of fieldnames; returns concatenated array
+subuscore:          Substitutes underscores with spaces - used for figure titles
+weber_caller:       All files should use this method to compute the weber ratio using the Matlab glmfit (logistic fit with L=0, H=1).
+
+Plotting utilities
+--------------------
+plot2groupdots.m
+
+
+--------------------------------
+Event analysis
+--------------------------------
+Tools in Analysis/
+
+Utilities:
+-----------
+parse_trials: Gets start/end times for all states and poke events on trial-by-trial basis
+get_state_name: Resolves an array of state numbers into state descriptions (dead_time, wait_for_apoke, etc.,)
+get_trial_events: Given a saved_history vector, returns the events and
+  state name-to-number mappings for a single trial
+
+Tools for analysis in: Analysis/Event_Analysis/
+ TTEMP. INCOMPLETE: get_pokes_during_state: Get L/C/R/all pokes that occurred during a named RealTimeState
+ get_pokes_rel_timepoint: Get left/center/right/all pokes before or after a fixed time (e.g. 23.432)
+ get_pokes_fancy: Same thing as get_pokes_rel_timepoints but allows filtering by multiple conditions and conjunction or disjunction of these conditions
+ get_correct_sides: Using pstruct,gets correct sides for each trial in binary array (1=left, 0=right)
+multiple_timeouts: Gets trials with specified ranges of timeouts
+state_times: For range of dates, returns struct where key is state and value is an array of start and end times of each occurrence of the state
+
+ apoke_during_timeout: Gets trials where left or right poke occurred during timeout
+ correct_poke_during_timeout: Gets trials where animal timed out and then make correct left or right poke
+ timeout_aggregator: Returns sum of all timeouts associated with each sound event (e.g. as defined in timeout_distribution_dual)
+get_sphandle: (/ExperPort/HandleParam/) Examine value of a SPH; filter by name or owner.
+
+Protocol-specific; may be copied and modified for other protocols:
+------------------------------------------------------------------
+parse_sound_evs_dual: Gets start/end times for all sounds where timeout may occur (e.g. pre_sound, cue, pre_go)
+timeout_distribution_dual: Counts timeouts occurring in all "sound events" as defined by parse_sound_evs_dual
+ 

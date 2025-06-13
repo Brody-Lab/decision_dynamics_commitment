@@ -1,0 +1,1 @@
+matlab -minimize -r "AES_Master"

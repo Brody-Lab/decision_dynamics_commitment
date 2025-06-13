@@ -1,0 +1,321 @@
+From brody@cshl.edu Wed Aug 10 22:55:49 2005
+Date: Wed, 10 Aug 2005 22:54:15 -0400
+From: Carlos Brody <brody@cshl.edu>
+To: calin@ajvar.org
+Subject: state machine program
+
+Hi Calin,
+
+I really enjoyed meeting you today. I think this'll work really well.  
+All three of us feel very enthusiastic about working with you. I hope  
+you do too!
+
+I'm attaching a bunch of stuff to get you going; don't hesitate to  
+email or call with questions if you have any. My cell number is 917  
+434-2037.
+
+Broad overview: The way the programs work is that we first set up the  
+DSP to run as a state machine, that is, it is able to run any state  
+transition matrix that is downloaded on to it. Then, in Matlab, we  
+set up the parameters for a single "trial." (A trial is defined as  
+sequence that goes from stimulus delivery to the rat reacting and  
+either getting a reward or not.) These parameters then get shipped to  
+the DSP, and include the particular state transition matrix that goes  
+with that trial. The trial then starts, and the DSP is on its own,  
+interacting in real-time with the rat. While the trial is going on,  
+Matlab periodically asks the DSP for information on what has  
+happened, but this is done every 250 ms or so, it is not in real- 
+time. Finally, when the trial ends, the whole cycle starts anew. Just  
+to give you an idea of the timescale involved, trials typically take  
+5 seconds or so.
+
+We often call the DSP machine the "RP Box."
+
+As we described today, the programs attached below are set up to run  
+in one of two possible modes: (a) interacting with the actual  
+hardware; and (b) interacting with a software simulation of the  
+hardware. (This last was to allow debugging when away from the  
+hardware).  Most of the Matlab  software contained here doesn't know  
+whether it is running in mode (a) or (b). What you need to do is use  
+the same plugs to add a mode (c) which would be "interacting with the  
+RT-Linux machine through ethernet." I'll take you through the plugs  
+below.
+
+[If you wanted to see the programs running after unpacking them, you  
+would:
+
+    (1) start Matlab
+    (2) cd to CSHL_RPBox
+    (3) type
+        mystartup; ModuleInit('control'); ModuleInit('rpbox');
+    (4) From the protocols menu in the RPBox window, select some  
+experimental
+         protocol such as ToneSamp. At this point the whole thing is  
+running.
+         The window with buttons marked "Out" "Left" "Center" and  
+"Right" is the
+         software simulation of the behavior box and state machine  
+hardware. As
+         you move the mouse around on it, it is as if the rat were  
+moving around.
+         A little "w" above a port means you got a water reward.]
+
+
+Where do you need to look?
+------------------------------------
+
+All the important hooks are in RPBox.m, within the Modules directory.  
+Interaction with the hardwar, is done using two function calls, which  
+are  actxcontrol() and invoke(). These have been replaced in RPBox.m  
+by actxcontrolWrapper() and invokeWrapper(), respectively, found in  
+the FakeRPBox directory.
+
+When the global variable fake_rp_box (defined in mystartup.m in the  
+main directory) is set to 0, the wrappers lead to Active X and  
+interact with the hardware. When fake_rp_box = 1, the wrappers call  
+the software simulation.
+Thus, actxcontrolWrapper and invokeWrapper are the key access points  
+to modify.
+
+actxcontrolWrapper() just returns an identifier. In the software  
+simulation mode, it is almost irrelevant.
+
+invokeWrapper() is the one that sends all the important commands, so  
+this is the one that needs most careful attention. The software  
+simulation lives in the directory FakeRPBox, and is what you might  
+want to look at. It is unfortunately not well documented. Below I  
+will describe enough about the state machine that you don't actually  
+have to look inside the software simulation. All of the commands  
+below are called from within RPBox.m.
+
+
+
+What are the MATLAB commands that talk to the DSP machine?
+-------------------------------------------------------------------
+
+Below are the commands that need to be emulated: RPBox.m makes calls  
+of these types.
+
+invokeWrapper(RP, 'Halt') : halts the DSP
+invokeWrapper(RP, 'ClearCOF') : clears the DSP. Used as part of  
+initialization.
+invokeWrapper(RP, 'ConnectRP2') : initialized the connection to the DSP
+invokeWrapper(RP, 'DefID') : part of DSP initialization.
+
+All four the above commands are set as NOOPs in the software  
+simulation-- in the simulation, we are not concerned with the DSP  
+itself, but just with what the DSP does once the state machine  
+program gets loaded into it. You can set the above calls to NOOPs too.
+
+invokeWrapper(RP, 'LoadCOF', program_name) : This loads the program that
+     defines the state machine into the DSP. We always load the same  
+state
+     machine program. You could use this command as the one to  
+initialize the
+     RT-Linux state machine.
+
+     [Note: When program_name is 'RM1Box.rco', we are talking about  
+the state
+     machine. When the name is '*Sound*', where * means wildcard, we are
+     talking about the sound delivery system (which is triggered by  
+the state
+     machine but is not part of the state machine). You can ignore  
+the sound
+     part for now.]
+
+invokeWrapper(RP, 'GetTagVal', tagname)
+
+    Get the value of scalar variable tagname from the DSP.
+
+invokeWrapper(RP, 'ReadTagVex', tagname, start_pt, end_pt, 'F32',  
+'F64', 1)
+
+    Get the value of vector named tagname, from element start_pt to  
+element
+     end_pt, where the index for the first element is 0.
+
+invokeWrapper(RP, 'SetTagVal', tagname, value)
+
+     Set the value of a scalar variable in the DSP.
+
+invokeWrapper(RP, 'WriteTagV', tagname, start_pt, datavals)
+
+    Set the values in a memory buffer named tagname in the DSP. datavals
+     should be a vector. The first element of datavals will go into  
+index start_pt
+     in the memory buffer.
+
+invokeWrapper(RP, 'WriteTagVEX', tagname, startpt, 'I32', datavals)
+
+     As WriteTagV, but allows format 'I32', which specifies 32-bit  
+integers.
+
+
+invokeWrapper(RP, 'SoftTrg', trignum)
+
+    Set off software-triggerable trigger number trignum in the DSP.
+
+
+
+What does the so-called "state machine program" do, so as to emulate it?
+------------------------------------------------------------------------ 
+---------------------
+
+Below is the version currently simulated in software. It is far from  
+optimal, and is suffering significant tweaks, but the following is an  
+adequate snapshot.
+
+The State Machine is defined by an 128-rows by 7-columns StateMatrix,  
+a 128-rows by 1-column TimDurMatrix vector, a 128-rows by 1 row  
+DIO_Out vector, and a 128-rows by 1-column AO_Oout vector. All of  
+these ('StateMatrix', 'TimDurMatrix', 'DIO_Out', 'AO_Out') are tag  
+names for reading and writing memory buffers in the DSP.
+
+Each row represents a state. The system stays in whatever state it is  
+in until one of seven possible events happen; to each event  
+corresponds a column of the StateMatrix. The events are, in order:
+
+    CenterIn; CenterOut; LeftIn; LeftOut; RightIn; RightOut; TimesUp.
+
+The first 6 refer to rat behaviors: CenterIn, for example, occurs  
+when the rat's nose interrupts an infrared diode detector in a  
+Central nose cone (which we sometimes call a "port"). CenterOut is  
+when the IR signal is restored. Similarly for the Left and Right ports.
+
+The last type of event is different: to each state there corresponds  
+a certain maximum time (specified by the corresponding entry in the  
+TimDurMatrix -- which, despite being called a matrix, is really a  
+vector, since it is 128-by-1). If the machine remains in state i for  
+TimDurMatrix(i) seconds, a TimesUp event occurs.
+
+The entries themselves in the StateMatrix refer to the state that the  
+machine should go to upon the occurrence of each type of event. Thus,  
+for example, if the first row (i.e. state 0) of the StateMatrix reads  
+as follows:
+
+    1  0  5  0  9  0  30
+
+it would mean: upon CenterIn go to state 1; upon CenterOut, stay in  
+state 0; upon RightIn go to state 5; upon RightOut, stay in state 0;  
+upon LeftIn go to state 9; upon Left out, stay in state 0; and if  
+TimesUp occurs, go to state 30.
+
+To each state, there corresponds an output value for 8 digital output  
+lines and for two analog output lines. These are specified by each  
+state's corresponding entries in the DIO_Out vector and in the AO_Out  
+vector. For digital outputs, the representation is a binary one. For  
+analog outputs, there are currently three possible values: 0 =  
+nothing, 1=0.6 volts on line 1; 2 = 0.6 volts on line 2; 4 = 0.3  
+volts on line 1. Only 1 such value is valid at any one time.
+
+
+How is data about events stored?
+-------------------------------------------
+
+Every time there is a state change, a "Full Event" gets recorded.  
+(Note that if there is no state change, no event gets recorded, even  
+if an input line was triggered. Using the example StateMatrix line  
+above, if in state 0 there is a CenterIn, then there is a state  
+change to state 1 and a Full Event gets recorded. But if in state 0  
+there is a CenterOut event, the machine stays in state 0, there is no  
+state change, and there is no record of anything having happened.  
+Also, there is a flag, described below, called "running." When  
+"running" is set to 0, no Full Events are recorded. When running is  
+set to 1, Full Events get recorded normally.)
+
+When a Full Event happens,  there is an entry in the StateMatrix that  
+governs which new state the machine goes to. Suppose this entry was  
+the (i,j) entry in the StateMatrix (i.e., state i, event type j). The  
+event ID of a Full Event is defined as i*128 + 2^j. For CenterIn,  
+j=0; for CenterOut, j=1; etc.
+
+When a Full Event happens, the event ID  is put into a memory buffer  
+named 'Event'; the time at which the Full Event happened is put into  
+a memory buffer named 'EventTime'; and a variable named  
+'EventCounter' is incremented by 1.
+
+
+What are the Soft Triggers programmed to do?
+-----------------------------------------------------
+
+invokeWrapper(RP, 'SoftTrg', 1) : makes the DSP behave as if a  
+TimesUp event had
+     occurred.
+
+invokeWrapper(RP, 'SoftTrg', 2) : reset the EventCounter variable to 0.
+
+invokeWrapper(RP, 'SoftTrg', 3) : set internal "running" flag to 1.  
+When the "running"
+     flag is zero, no events can occur (i.e., CenterIn, TimesUp, etc.  
+are ignored).
+
+invokeWrapper(RP, 'SoftTrg', 4) : set internal "running" flag to 0.
+
+invokeWrapper(RP, 'SoftTrg', 5) : Forces the digital output lines to  
+be a bitwise or of
+     what is specified by the DIO_Out vector and a variable named  
+Dio_Hi_Bits.
+     (This is used to allow outside-the-state-machine overriding of  
+digital outs).
+     This is kept on for 'Dio_Hi_Dur'/6000 seconds, after which  
+Dio_Hi_Bits are
+     ignored once again.
+
+invokeWrapper(RP, 'SoftTrg', 6) : Forces the digital output lines to  
+be a bitwise or of
+     what is specified by the DIO_Out vector and a variable named  
+Bits_HighVal.
+     This trigger flips a flip-flop: that is, this bitwise or is kept  
+on until the end of
+     time, or until trigger 7 flips the the flip-flop back, whichever  
+comes first.
+
+invokeWrapper(RP, 'SoftTrg', 7) : Stop using Bits_HighVal
+
+invokeWrapper(RP, 'SoftTrg', 8) : if AOBits_HighVal is 1, set analog  
+line 1 to 0.6 volts.
+     if AOBits_HighVal is 2, set analog line 2 to 0.6 volts.
+     if AOBits_HighVal is 4, set analog line 1 to 0.3 volts.
+
+invokeWrapper(RP, 'SoftTrg', 9) : ignore variable AOBits_HighVal
+
+
+
+----------- END DESCRIPTION ----------
+
+
+I hope this is enough to get you going. Don't hesitate to contact me  
+or Lung-Hao Tai from Tony's lab (ltai@cshl.edu), who wrote much of  
+this and knows the system better than I do. Of course when we meet  
+again at the labs we can describe it with much more precision.
+
+I'm looking forward to working with you: I think this'll be a lot of  
+fun!
+
+cheerio
+Carlos.
+
+
+---------------------------------------------
+Carlos Brody   Associate Professor, CSHL
+(516) 367-6902    http://brodylab.cshl.edu
+Fax: ...-8389          brody@cshl.edu
+
+1 Bungtown Rd., Freeman Bldg.,
+Cold Spring Harbor, NY, 11724
+----------------------------------------------
+
+
+
+
+    [ Part 2, Application/ZIP  4.1MB. ]
+    [ Unable to print this part. ]
+
+
+    [ Part 3: "Attached Text" ]
+
+
+
+
+
+

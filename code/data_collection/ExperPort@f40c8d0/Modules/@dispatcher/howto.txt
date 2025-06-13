@@ -1,0 +1,122 @@
+HOW DO I START UP DISPATCHER?
+-----------------------------
+
+When you first start Matlab and you change to the main release
+directory, call
+
+  >> newstartup
+  >> dispatcher('init')
+
+
+
+HOW DO I START SETTING UP A NEW PROTOCOL?
+-----------------------------------------
+
+Let's suppose you want to write a protocol called 'myprot' that will
+use dispatcher.  To write a protocol that uses dispatcher, you should
+
+  (1) Make an object directory Protocols/@myprot
+
+  (2) Make a constructor m-file called  Protocols/@myprot/myprot.m
+
+  (3) Inside myprot.m, copy all the lines from
+      Modules/@dispatcher/template_code.txt, and then modify at will
+
+(Some simple example protocols are @Minimal, @Simplest, and @Dtemplate).
+
+The constructor myprot.m should know how to respond when called with
+each of the following possible strings as its single argument:
+
+  'init'     To initialize -- make figure windows, variables, etc.
+
+  'update'   Called periodically within a trial
+
+  'state35'  Called when a trial has ended and your protocol is expected
+             to produce the StateMachine diagram for the next trial;
+             i.e., somewhere in your protocol's response to state35, it
+             should call "dispatcher('send_assembler', sma);" where sma
+             is the StateMachineAssembler object that you have prepared.
+                Note that after state35, further events may still occur
+             while your protocol is thinking, before the new StateMachine
+             diagram gets sent. These events will be available to you
+             when 'state0' is called on your protocol (see below).
+
+  'state0'   Called when the intertrial interval states (in between the
+             first state35, marking the end of a trial, and the final
+             jump to state0 to start a new trial) have finished and the
+             new trial is really starting.
+
+  'close'    Called when the protocol is to be closed.
+
+
+Some simple example protocols are Minimal, Simplest, and Dtemplate (in
+order of increasing complexity).
+
+------
+
+WHAT WILL DISPATCHER DO FOR ME?
+
+The main thing dispatcher does is act as a mediator between the
+real-time State Machine and your protocol. It takes care of calling
+the state machine regularly for updates, searching for trial end
+(state35) and trial start (state0) signals, parsing the results that
+come back from the state machine, and doing al the housekeeping
+necessary to cleanly package into separate trials the results coming
+from state machine.
+
+The way dispatcher does this for you is by: (A) calling the protocol
+functions listed above when appropriate. That is, myprot.m will be
+called as myprot('init'), or myprot('update'), and so on. (B)
+dispatcher maintains a set of SoloParamHandles that will belong to
+your protocol (that is, they will be automatically saved and loaded
+with it when you use load_soloparamhandles.m or
+save_soloparamhandles.m). These variables will be instantiated as
+read-only SoloParamHandles, global for all .m files in your protocol.
+
+
+---------
+
+THE SET OF VARIABLES THAT DISPATCHER WILL ALWAYS INSTANTIATE FOR YOU
+AS READ_ONLY GLOBALS IN YOUR PROTOCOL:
+
+n_done_trials     How many trials have been finished; when a trial reaches
+                  state35 for the first time, this variable is incremented
+                  by 1.
+
+n_started trials  How many trials have been started. This variable gets
+                  incremented by 1 every time the state machine goes
+                  through state 0.
+
+parsed_events     The result of running disassemble.m, with the
+                  parsed_structure flag set to 1, on all events from the
+                  start of the current trial to now.
+
+latest_events     The result of running disassemble.m, with the
+                  parsed_structure flag set to 1, on all new events from
+                  the last time 'update' was called to now.
+
+raw_events        All the events obtained in the current trial, not parsed
+                  or disassembled, but raw as gotten from the State
+                  Machine object.
+
+current_assembler The StateMachineAssembler object that was used to
+                  generate the State Machine diagram in effect in the
+                  current trial.
+
+Trial-by-trial history of parsed_events, raw_events, and
+current_assembler, are automatically stored for you in your protocol
+by dispatcher.m; that is, at the end of every trial, push_history.m is
+called on each of parsed_events, raw_events, and
+current_assembler. Thus, if after 10 trials you wanted to obtain the
+parsed events for trial 6, you could do it like this from within any
+file in your protocol:
+
+  pehist = get_history(parsed_events);
+  trial_6_events = pehist{6};
+
+
+
+
+    
+
+

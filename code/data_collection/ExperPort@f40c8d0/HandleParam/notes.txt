@@ -1,0 +1,14 @@
+
+Add helper files as in InitializeUIEdit, etc.
+
+Set up an 'is_numeric' field for the edit param. If this is on, and
+something non-numeric comes in, a warning is issued, but the value is
+not accepted...
+
+Set up automatic string or number value system for menus
+
+Eliminate the practice of allowing SoloFunction to capture handles by name.
+
+Add a fullname field (subdirs+subfuncs), to allow load and save to
+work correctly. This will allow private namespaces within helper functions!
+Hmm... really need only m-file name and subfunc name, that's it...

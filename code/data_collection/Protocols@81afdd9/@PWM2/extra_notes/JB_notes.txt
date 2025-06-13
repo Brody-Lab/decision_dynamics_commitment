@@ -1,0 +1,31 @@
+May be good to have a flag for PWM or DMS to use.
+
+%%% HistorySection init/prepare_next_trial conditions
+
+trial_history could keep track on if it was a match, or a non match trial
+by pulling this information from SoundSection, or calculating it within 
+HistorySection, like:
+
+if DMS == True:
+    if prev_sa.value == prev_sb.value,
+        trial_history == 'match';
+    else
+        trial_history == 'nonmatch';
+    end
+end
+
+%%% HistorySection delay_history versus fixation_history:
+
+delay is just the time between the two sounds
+
+fixation is the total time from cp to go cue going off, takes into 
+account the time of the sounds and pre/post delays 
+
+
+%%% HistorySection end_session
+
+if DMS == True,
+    add a line with match performance and non match performance
+
+wil need to keep track of these variables above as well and calculate
+during the prepare_next_trial

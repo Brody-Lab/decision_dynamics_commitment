@@ -1,0 +1,149 @@
+% PARAMETERS:
+% -----------
+%
+% obj      Default object argument.
+%
+% action   One of:
+%
+%            'prepare_next_trial'   Returns a @StateMachineAssembler
+%                        object, ready to be sent to dispatcher, and a cell
+%                        of strings containing the 'prepare_next_trial'
+%                        states.
+%
+%            'get_state_colors'     Returns a structure where each
+%                        fieldname is a state name, and each field content
+%                        is a color for that state.
+%
+%
+% RETURNS:
+% --------
+%
+% [sma, prepstates]      When action == 'prepare_next_trial', sma is a
+%                        @StateMachineAssembler object, ready to be sent to
+%                        dispatcher, and prepstates is a a cell
+%                        of strings containing the 'prepare_next_trial'
+%                        states.
+%
+% state_colors           When action == 'get_state_colors', state_colors is
+%                        a structure where each fieldname is a state name,
+%                        and each field content is a color for that state.
+%
+%
+%
+%
+%
+function [varargout] = SMASection(obj, action)
+
+GetSoloFunctionArgs(obj);
+
+switch action
+    
+    %% prepare_next_trial
+    % -----------------------------------------------------------------------
+    %
+    %         PREPARE_NEXT_TRIAL
+    %
+    % -----------------------------------------------------------------------
+    
+    case 'prepare_next_trial'
+        
+        nTrials.value = n_done_trials;
+        
+        % <~> If we've completed our trial, tell RunRats that we're done.
+        if nTrials.value > 0 && runrats('is_running')
+            runrats('rigtest_singletrial_is_complete');
+            return;
+        end
+        
+        allinput = bSettings('get','INPUTLINES','ALL');
+        inputnames = repmat('a',1,length(allinput));
+        for i = 1:length(allinput)
+            inputnames(i) = allinput{i,1};
+        end
+        
+        xled = bSettings('get','DIOLINES','xled');
+        
+        trial_type_rand = rand();
+        if trial_type_rand < 0.25
+            trial_type = 'right_correct';
+        elseif trial_type_rand < 0.5
+            trial_type = 'left_correct';
+        elseif trial_type_rand < 0.75
+            trial_type = 'right_wrong';
+        else
+            trial_type = 'left_wrong';
+        end
+        
+        %snd_low = SoundManagerSection(obj,'get_sound_id','snd_low');
+        %snd_high = SoundManagerSection(obj,'get_sound_id','snd_high');
+        sma = StateMachineAssembler('full_trial_structure',...
+            'use_happenings',1, ...
+            'n_input_lines',numel(inputnames),'line_names',inputnames);
+               
+
+        sma = add_state(sma, 'name', 'wait1', 'self_timer',0.1, ...
+            'output_actions', {'DOut', xled}, ...
+            'input_to_statechange', { 'Tup', 'in_start' });
+        
+       sma = add_state(sma, 'name', 'in_start', 'self_timer',0.1, ...
+             'input_to_statechange', { 'Tup', 'in_cues' });
+         
+       sma = add_state(sma, 'name', 'in_cues', 'self_timer',0.1, ...
+             'input_to_statechange', { 'Tup', 'in_memory' });
+         
+       sma = add_state(sma, 'name', 'in_memory', 'self_timer',0.1, ...
+             'input_to_statechange', { 'Tup', 'in_turn' });
+        
+        sma = add_state(sma, 'name', 'in_turn', 'self_timer',0.1, ...
+            'input_to_statechange', { 'Tup', trial_type});
+                                  
+          
+        sma = add_state(sma, 'name', 'right_wrong','self_timer',0.2, ...
+            'input_to_statechange', {'Tup','final_state'});
+        
+        sma = add_state(sma, 'name', 'left_wrong','self_timer',0.2, ...
+            'input_to_statechange', {'Tup','final_state'});
+
+        sma = add_state(sma, 'name', 'right_correct','self_timer',0.2, ...
+            'output_actions', {'DOut', xled}, ...
+            'input_to_statechange', {'Tup','final_state'});
+        
+        sma = add_state(sma, 'name', 'left_correct','self_timer',0.2, ...
+            'output_actions', {'DOut', xled}, ...
+            'input_to_statechange', {'Tup','final_state'});
+        
+        sma = add_state(sma, 'name', 'final_state', ...
+            'self_timer', 0.2, 'input_to_statechange', {'Tup', 'check_next_trial_ready'});
+        dispatcher('send_assembler', sma, 'final_state');
+        tic
+        
+        % Defaul behavior of following call is that every 20 trials, the data
+        % gets saved, not interactive, no commit to CVS.
+        %     SavingSection(obj, 'autosave_data');
+        
+        %% get_state_colors
+        % ----------------------------------------------------------------
+        %
+        %       CASE GET_STATE_COLORS
+        %
+        % ----------------------------------------------------------------
+        
+    case 'get_state_colors'
+        
+        varargout{1} = struct( ...
+            'in_start',               [0.7 0.7 1], ...
+            'in_cues',                [0.5 0.5 0.8], ...
+            'in_memory',              [0.3 0.3 0.6], ...
+            'in_turn',                [0.1 0.1 0.4], ...
+            'right_correct',          [0 0.6 0],   ...
+            'left_correct',           [0.2 1 0.2],       ...
+            'right_wrong',            [0.6 0 0],     ...
+            'left_wrong',             [1 0.2 0.2]);
+        
+        
+        
+        %% reinit
+        
+end
+end
+

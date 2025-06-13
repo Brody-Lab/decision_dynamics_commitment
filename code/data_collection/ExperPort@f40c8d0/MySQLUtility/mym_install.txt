@@ -1,0 +1,12 @@
+% For most architectures mym should work as is.
+% Supported systems include : linux_32, linux_64, windows_32, macosx_intel
+% If matlab complains that mym is a script, then you need to recompile it for your system.
+% To compile you will need to run something like
+
+mex -I/usr/include/mysql -lmysqlclient -lz mym.cpp
+
+% In order for this to compile successfully your system will need
+% 1) C++ compiler
+% 2) mysql-dev
+% 3) zlib-dev
+

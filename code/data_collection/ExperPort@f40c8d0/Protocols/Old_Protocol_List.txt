@@ -1,0 +1,27 @@
+12 April 2006:
+--------------
+
+The following files and directories were removed from this directory
+in the CVS repository (and therefore are stored in the repository when you ask 
+for this directory previous to the above date):
+
+Classical2AFC.m
+NewParamTester.m
+PureToneTester.m
+Sampler1.m
+SeqDiscSamp10_ANALYZE.m
+SeqDiscSamp10e.m
+Solo_WaterValve.m
+StereoTester.m
+WaterValveCalibrator.m
+WaterValveCalibrator_both.m
+
+@locsamp3obj/
+@locsamp4obj/
+@pitchsampobj/
+@puretonetesterobj/
+@samplero1/
+@solo_watervalveobj/
+NewParamTester/
+SigmoidSamp7/
+

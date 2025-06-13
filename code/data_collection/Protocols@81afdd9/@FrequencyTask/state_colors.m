@@ -1,0 +1,26 @@
+function SC = state_colors(obj) %#ok<INUSD>
+
+
+% Colors that the various states take when plotting
+SC = struct( ...
+          'wait_for_cpoke',      [210 105 205]/255, ...  % orchid
+          'wait_for_cpoke_dir',  (255/210)*[210 105 205]/255, ...  % orchid
+          'wait_for_cpoke_freq', (105/255)*[210 105 205]/255, ...  % orchid
+          'cpoke',               [0.52 0.76 1], ...
+          'cpoke_in',               [0.52 0.76 1], ...
+          'cpoke_out',               [0.52 0.76 1], ...
+          'wait_for_cout',       [0.52 0.6 0.8], ...
+          'nic_error_state',      [1   0.45 0.45], ...
+          'wait_for_spoke',       [132 111 255]/255, ...  % slate blue
+          'hit_state',            [50  255  50]/255, ...  % green
+          'hit_state2',            [50  255  50]/255, ...  % green
+          'error_state',          [255   0   0]/255, ...  % red
+          'wait_state',          [255   0   0]/255, ...  % red
+          'timeout_state',    [255 236 139]/255, ...  % light goldenrod  
+          'state_0',              [1   1   1  ],  ...
+          'iti',                  [0.5 0.5 0.5], ...
+          'check_next_trial_ready',     [0.7 0.7 0.7]);
+      
+      
+      
+

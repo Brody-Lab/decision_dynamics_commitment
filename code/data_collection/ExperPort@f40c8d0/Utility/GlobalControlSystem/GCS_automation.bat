@@ -1,0 +1,1 @@
+matlab -minimize -r "GCS_automation"

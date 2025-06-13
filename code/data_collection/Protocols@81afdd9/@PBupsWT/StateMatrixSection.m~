@@ -1,0 +1,887 @@
+% @PBupsWT/StateMatrixSection
+% TBM, Sept 2015
+% Created based on @PBups/StateMatrixSection
+% BWB, March 2009
+
+
+% [x, y] = StateMatrixSection(obj, action, x, y)
+%
+% HELP HERE
+%
+% PARAMETERS:
+% -----------
+%
+% obj      Default object argument.
+%
+% action   One of:
+%            'init'         To initialise the section
+%
+%            'next_trial'   To set up the state matrix for the next trial
+%
+%            'reinit'       Delete all of this section's GUIs and data,
+%                           and reinit, at the same position on the same
+%                           figure as the original section GUI was placed.
+%
+% x, y     Relevant to action = 'init'; they indicate the initial
+%          position to place the GUI at, in the current figure window
+%
+% RETURNS:
+% --------
+%
+% [x, y]   When action == 'init', returns x and y, pixel positions on
+%          the current figure, updated after placing of this section's GUI.
+%
+
+function  [] =  StateMatrixSection(obj, action)
+
+GetSoloFunctionArgs;
+
+switch action
+    case 'init',
+        feval(mfilename, obj, 'next_trial');
+        
+    case 'next_trial',
+        min_time= .002;% 2.5E-4;  % This is less than the minumum time allowed for a state transition.
+        
+        % define light and water lines and stimulator channels   
+        left1led           = bSettings('get', 'DIOLINES', 'left1led');
+        center1led         = bSettings('get', 'DIOLINES', 'center1led');
+        right1led          = bSettings('get', 'DIOLINES', 'right1led');
+        left1water         = bSettings('get', 'DIOLINES', 'left1water');
+        right1water        = bSettings('get', 'DIOLINES', 'right1water');
+        % set up stimulator channels, if any
+        % HACK ALERT: currently works with only one DIO line named LASER
+        % if you don't have this in your settings_custom.conf file, then
+        % nothing will happen
+        stim               = bSettings('get', 'DIOLINES', 'LASER'); if isnan(stim), stim = 0; end;
+        mask               = bSettings('get', 'DIOLINES', 'MASK');  if isnan(mask), mask = 0; end;
+        
+        %% gather task parameters and set up dependent variables
+        [StimulusSpecs, StimulatorSpecs]  = StimulusSection(obj, 'get_stimulus_specs');
+        MaskSpecs                         = PBupsSection(obj, 'get_mask_specs');
+        pundur                            = PunishInterface(obj, 'get', 'TimeOutPun', 'Duration');
+        [LeftWValveTime, RightWValveTime] = WaterValvesSection(obj, 'get_water_times', hit_streak);
+        [ThisTrial_Side, ThisCatch]       = SidesSection(obj, 'get_current_side');
+        ITI                               = PenaltySection(obj, 'get_ITI');
+        [HitWaitDelay, ErrorWaitDelay]    = PenaltySection(obj, 'get_WaitDelays');
+        
+        right_valvetime                   = RightWValveTime*right_wtr_mult;%right_wtr_mult defined in RewardsSection
+        left_valvetime                    = LeftWValveTime*left_wtr_mult;
+
+        if StimulatorSpecs.ison > 0, this_stim = stim(1); else this_stim = 0; end; 
+        if MaskSpecs.ison > 0,       this_mask = mask(1); else this_mask = 0; end;
+    
+        % declare variables that depend on what kind of trial this is
+        if PunishSideChoice,
+            if TempTOPun, incorrect_state = 'temporary_punishment'; % punishment: temporary white noise
+            elseif ErrorWaitDelay>0, incorrect_state = 'err_wait_wave_trig';
+            else incorrect_state =  'error_state1'; % punishment: trial terminates
+            end;
+        else
+            incorrect_state = 'current_state';
+        end;
+        
+        if strcmp(ThisTrial_Side,'l'),
+            correct_in = 'Lin'; correct_out = 'Lout'; reward_state = 'left_reward'; 
+            wrong_in = 'Rin'; wrong_out = 'Rout'; 
+            correct_side_led = left1led;  incorrect_side_led = right1led; %#ok<NASGU>
+            if HitWaitDelay > 0, 
+                left_resp_state = 'wait_wave_trig';
+            else
+                left_resp_state = reward_state;
+            end;
+            right_resp_state = incorrect_state;
+            
+        elseif strcmp(ThisTrial_Side,'r'),
+            correct_in = 'Rin'; correct_out = 'Rout'; reward_state = 'right_reward';
+            wrong_in = 'Lin'; wrong_out = 'Lout';  
+            correct_side_led = right1led; incorrect_side_led = left1led; %#ok<NASGU>
+            if HitWaitDelay > 0, 
+                right_resp_state = 'wait_wave_trig';
+            else
+                right_resp_state = reward_state;
+            end;
+            left_resp_state = incorrect_state;            
+        end;
+            
+        % timed drinking states:
+        if WarnDur > 0,                     
+            post_drink_state = 'warning';
+        elseif WarnDur==0 && DangerDur > 0, 
+            post_drink_state = 'danger';
+        elseif WarnDur==0 && DangerDur==0,  
+            post_drink_state = 'clean_up_state';
+        end;
+        if DangerDur > 0,                   
+            post_warning_state = 'danger';
+        else
+            post_warning_state = 'clean_up_state';
+        end;
+        
+        % soft drink states
+        if WD_in_sdt==1, 
+            post_softdt = post_drink_state;
+        else
+            post_softdt = 'clean_up_state';
+        end;
+        
+        if SoftDrinkCap > DrinkTime, 
+            softdrinktimer = SoftDrinkCap-DrinkTime+min_time;
+        else
+            softdrinktimer = min_time;
+        end;
+        
+        % control when the leds in the side ports are on
+        hit_wait_tempviol_side_led = 0; 
+        err_wait_tempviol_side_led = 0;
+        hit_wait_viol_side_led = 0;
+        err_wait_viol_side_led = 0;
+        switch value(SideLights),
+            case 'correct side only',     
+                side_led = correct_side_led;
+            case 'both sides on',         
+                side_led = right1led+left1led;
+            case 'both sides off',        
+                side_led = 0; 
+            case 'anticorrect side only', 
+                side_led = incorrect_side_led; 
+            case 'both on wait viol',     
+                side_led = 0; 
+                hit_wait_tempviol_side_led = correct_side_led; 
+                err_wait_tempviol_side_led = incorrect_side_led;
+                if ~TerminateWaitBreak
+                    hit_wait_viol_side_led = correct_side_led;
+                    err_wait_viol_side_led = incorrect_side_led;
+                end
+            otherwise
+                warning('PBups:UnknownSetting', 'Don''t know what to do with the SideLights setting');
+        end;
+        
+        % control what the center port does during choice and waiting
+        wait_led=0; 
+        waitviol_led = 0;
+        switch value(CenterLight),
+            case 'off', 
+                pre_cpoke_led = 0; 
+                cpoke_led= 0;
+            case 'on', 
+                pre_cpoke_led = center1led; 
+                cpoke_led = center1led;
+            case 'off at first cpoke', 
+                pre_cpoke_led = center1led; 
+                cpoke_led = 0;
+            case 'on at first cpoke', 
+                pre_cpoke_led = 0;
+                cpoke_led = center1led;
+            case 'on during wait', 
+                pre_cpoke_led = center1led; 
+                cpoke_led = center1led; 
+                wait_led = center1led;
+            case 'on during wait viol',
+                pre_cpoke_led = center1led;
+                cpoke_led = center1led;
+                wait_led = 0;
+                waitviol_led = center1led;
+        end;
+        
+        % Determine where waiting states should go based on options
+        if WaitCpokeReset, 
+            center_from_wait_state = 'trial_abort_state';
+        else
+            center_from_wait_state = 'current_state';
+        end
+        if TerminateWaitBreak
+            hit_wait_viol_reinit_state = 'wait_reinit_pun';
+            err_wait_viol_reinit_state = 'wait_reinit_pun';
+            center_from_wait_viol_state = 'trial_abort_state';
+        else
+            hit_wait_viol_reinit_state  = 'wait_wave_trig';
+            err_wait_viol_reinit_state  = 'err_wait_wave_trig';
+            center_from_wait_viol_state = center_from_wait_state;
+        end   
+        
+        % decide whether to tell the animal it violated waiting
+        if SignalWaitViol
+            wait_viol_snd = SoundManagerSection(obj, 'get_sound_id', 'wait_viol_sound');
+        else
+            wait_viol_snd = 0;
+        end
+        
+        % ITI
+        if PunishITIPokes == 1, 
+            iti_poke_state = 'iti_pun';
+        else
+            iti_poke_state = 'current_state';
+        end;
+        
+        % wait for center poke 1
+        if PunishCL1BadPokes == 1, 
+            wcin_spoke_state = 'cl1_pun';
+        else
+            wcin_spoke_state = 'current_state';
+        end;
+        
+        if new_trial_on_violation==0, 
+            violation_goto = 'temp_violation';
+        else
+            violation_goto = 'violation_state';
+        end;
+        
+        
+        
+        if WaitForCenterNoseOut==1, 
+            nic_end_goto = 'wait_for_center_nose_out';
+        else
+            nic_end_goto = 'center_2_side_gap';
+        end;
+        
+        if WaitForCin, 
+            iti_tup_state = 'wait_for_cpoke1';
+            if NICDur <= .001, 
+                stim_on_tup_state = nic_end_goto;
+            else
+                stim_on_tup_state = 'cpoke1';
+            end
+        else
+            iti_tup_state = 'play_stimulus_sound'; 
+            stim_on_tup_state = 'wait_for_spoke';
+        end
+        
+        if PunishSidePokesinWFCO==1, side_poke_while_WFCO = 'punish_WFCO';
+        else                         side_poke_while_WFCO = 'current_state';
+        end;
+        pwfco_dur = SoundManagerSection(obj, 'get_sound_duration', 'WFCOPun');
+        pwfco_id  = SoundManagerSection(obj, 'get_sound_id',       'WFCOPun');
+        if PunishC2SCenterPokes == 1, c2sgap_center_poke_state = 'c2s_pun';
+        else                          c2sgap_center_poke_state = 'current_state';
+        end
+        
+        if PunishC2SSidePokes == 1,
+            c2sgap_lside_poke_state = 'c2s_pun';
+            c2sgap_rside_poke_state = 'c2s_pun';
+        else
+            c2sgap_lside_poke_state = 'current_state+1';
+            c2sgap_rside_poke_state = 'current_state+2';
+        end;
+        
+        if C2SGap_2 == 0,
+            after_c2sgap_state    = 'wait_for_spoke';
+            c2sgap_left_response  = left_resp_state;
+            c2sgap_right_response = right_resp_state;
+        else
+            after_c2sgap_state    = 'center_2_side_gap_2';
+            c2sgap_left_response  = 'center_2_side_gap_2+4';
+            c2sgap_right_response = 'center_2_side_gap_2+5';
+        end
+ 
+        if SoftDrinkTime == 1,
+            post_hit_state_in  = 'soft_drink_state';
+            post_hit_state_out = 'soft_drink_state+1';
+        else
+            post_hit_state_in  = 'drink_state';
+            post_hit_state_out = 'drink_state';
+        end;
+        
+        
+        if strcmp(StimulatorSpecs.trigger, 'wait_for_spoke'); wfsp_wave = 'laser_stim_on';
+        else                                                  wfsp_wave = '';
+        end;
+      
+        if strcmp(MaskSpecs.trigger, 'wait_for_spoke');
+            if isempty(wfsp_wave); wfsp_wave = 'mask_on';
+            else                   wfsp_wave = [wfsp_wave,' + mask_on'];
+            end
+        end;
+        
+        if LEDRewardTime <= 0, swaves_to_add = '';
+        else                   swaves_to_add = '+leds_during_reward';
+        end;
+        
+        snd_waves_on  = '+sound_on + min_rt_wave';
+        snd_waves_off = '-sound_on - min_rt_wave';
+        snd_waves_off_cleanup = '-sound_on - min_rt_wave';
+        if strcmp(StimulatorSpecs.trigger, 'cpoke1'),
+            snd_waves_on = [snd_waves_on '+ laser_stim_on'];
+            snd_waves_off_cleanup = [snd_waves_off_cleanup '- laser_stim_on'];
+            
+            
+        end;
+        
+        if strcmp(MaskSpecs.trigger, 'cpoke1'),
+            snd_waves_on = [snd_waves_on '+ mask_on'];
+            snd_waves_off_cleanup = [snd_waves_off_cleanup '- mask_on'];
+            
+        end;
+        snd_cpoke_waves_off = [snd_waves_off '- cpoke_timer'];
+        snd_cpoke_waves_off_cleanup = [snd_waves_off_cleanup '- cpoke_timer'];
+        if TerminateWaitBreak,
+           snd_cpoke_waves_off_cleanup = [snd_cpoke_waves_off_cleanup '-wait_wave-err_wait_wave'];
+        end
+
+
+        prep_next_trial_states = {'prep_next_trial_state'};
+        
+
+
+        
+        %% declare sound ids
+        v_dur = SoundManagerSection(obj, 'get_sound_duration', 'TempPun');
+        v_id  = SoundManagerSection(obj, 'get_sound_id',       'TempPun');
+        if nic_end_sound==0, 
+            nic_end_sound_id = 0;
+        else
+            nic_end_sound_id = SoundManagerSection(obj, 'get_sound_id', 'nic_end_sound');
+        end;
+        
+        if locked_in_sound, locked_snd     = SoundManagerSection(obj, 'get_sound_id', 'locked_in_sound');
+            locked_snd_dur = SoundManagerSection(obj, 'get_sound_duration', 'locked_in_sound');
+        else				locked_snd = 0;
+            locked_snd_dur = min_time;
+        end;
+        violation_snd_id = SoundManagerSection(obj, 'get_sound_id', 'TimeOutPun_OngoingSnd');
+        warn_id   = SoundManagerSection(obj, 'get_sound_id', 'WarningSound');
+        danger_id = SoundManagerSection(obj, 'get_sound_id', 'DangerSound');
+        % clean up sounds
+        snd_list=SoundManagerSection(obj, 'get_sound_id','all');
+        
+        %% initialize state machine
+        sma = StateMachineAssembler('full_trial_structure','use_happenings', 1);
+        
+        
+        
+        %% define scheduled waves and associated happenings
+        sma = add_scheduled_wave(sma, 'name', 'c2s_gap_2', 'preamble', max(min_time, C2SGap_2));
+        sma = add_scheduled_wave(sma, 'name', 'temporary_punishment_lights_wave', 'preamble', min_time, ...
+            'sustain', pundur-min_time, 'DOut', side_led);
+        sma = add_scheduled_wave(sma, 'name', 'leds_during_reward', 'preamble', min_time, ...
+            'sustain', max(min_time, LEDRewardTime), 'DOut', side_led);
+        sma = add_scheduled_wave(sma, 'name', 'hitstatetimer', 'preamble', DrinkTime);
+        sma = add_scheduled_wave(sma, 'name', 'softdrinktimer', 'preamble', softdrinktimer);
+        sma = add_scheduled_wave(sma, 'name', 'sd_grace',       'preamble', max(SoftDrinkGrace, 3*min_time));
+        
+        sma = add_scheduled_wave(sma, 'name', 'c2s_gap', 'preamble', max(min_time, C2SGap));
+        sma = add_scheduled_wave(sma, 'name', 'violation', 'preamble', min_time, 'sustain', v_dur, 'sound_trig', v_id);
+        % turns on the stim DIO line
+        sma = add_scheduled_wave(sma, 'name', 'laser_stim_on', ...
+            'preamble', StimulatorSpecs.pre, ...
+            'sustain', StimulatorSpecs.dur, ...
+            'DOut', this_stim);
+        
+        sma = add_scheduled_wave(sma, 'name', 'mask_on', ...
+            'preamble', MaskSpecs.pre, ...
+            'sustain', MaskSpecs.dur, ...
+            'DOut', this_mask);
+        
+        % plays the sound stimulus
+        sma = add_scheduled_wave(sma, 'name', 'sound_on', 'preamble', StimulusSpecs.sound_delay, ...
+            'sustain', StimulusSpecs.sound_dur, ...
+            'sound_trig', StimulusSpecs.sound_id, 'loop', LoopStim);
+        sma = add_scheduled_wave(sma, 'name', 'min_rt_wave', 'preamble', StimulusSpecs.sound_delay + min_rt, ...
+            'sustain', StimulusSpecs.sound_dur - min_rt);
+        
+        
+        sma = add_scheduled_wave(sma, 'name', 'direct_left_reward', 'preamble', reward_delay(1), ...
+            'sustain', left_valvetime, 'DOut', left1water);
+        
+        sma = add_scheduled_wave(sma, 'name', 'direct_right_reward', 'preamble', reward_delay(1), ...
+            'sustain', right_valvetime, 'DOut', right1water);
+        
+        sma = add_scheduled_wave(sma, 'name', 'wait_wave', 'preamble', HitWaitDelay, 'sustain', min_time+LegalWaitBreak);
+        sma = add_scheduled_wave(sma, 'name', 'err_wait_wave', 'preamble', ErrorWaitDelay, 'sustain', min_time+LegalWaitBreak);
+        
+        sma = add_scheduled_wave(sma, 'name', 'wait_viol_wave', 'preamble', LegalWaitBreak);
+        sma = add_scheduled_wave(sma, 'name', 'cpoke_timer',  'preamble', NICDur, 'sustain', LegalCBreak+LegalCBreakRt+min_time);
+        
+        sma = add_happening_spec(sma, struct(...
+            'name',                 {'wait_wave_hi',                    'wait_wave_lo'}, ...
+            'detectorFunctionName', {'wave_high',                           'wave_low'}, ...
+            'inputNumber',          {get_wavenumber(sma, 'wait_wave'), get_wavenumber(sma, 'wait_wave')}));
+        
+        sma = add_happening_spec(sma, struct(...
+            'name',                 {'err_wait_wave_hi',                    'err_wait_wave_lo'}, ...
+            'detectorFunctionName', {'wave_high',                           'wave_low'}, ...
+            'inputNumber',          {get_wavenumber(sma, 'err_wait_wave'), get_wavenumber(sma, 'err_wait_wave')}));
+        
+        sma = add_happening_spec(sma, struct(...
+            'name',                 {'cpoke_timer_hi',                  'cpoke_timer_lo'}, ...
+            'detectorFunctionName', {'wave_high',                           'wave_low'}, ...
+            'inputNumber',          {get_wavenumber(sma, 'cpoke_timer'), get_wavenumber(sma, 'cpoke_timer')}));
+        
+        sma = add_happening_spec(sma, struct(...
+            'name',                 {'min_rt_wave_hi',                  'min_rt_wave_lo'}, ...
+            'detectorFunctionName', {'wave_high',                           'wave_low'}, ...
+            'inputNumber',          {get_wavenumber(sma, 'min_rt_wave'), get_wavenumber(sma, 'min_rt_wave')}));
+        
+        
+        %% add states to state machine
+        % first state after state_0
+        sma = add_multi_sounds_state(sma, -1*snd_list,'state_name',...
+            'clean_sound_state','return_state','prep_next_trial_state');
+        
+        sma = add_state(sma, 'name', 'prep_next_trial_state','self_timer',min_time,...
+                    'input_to_statechange', {'Tup', 'iti'});
+        
+        sma = add_state(sma, 'name', 'iti', 'self_timer', ITI, ...
+            'input_to_statechange', {'Tup', iti_tup_state; ...
+            'Cin', iti_poke_state; ...
+            'Lin', iti_poke_state; ...
+            'Rin', iti_poke_state; ...
+            });
+
+        sma = PunishInterface(obj, 'add_sma_states', 'ITIPun', sma, ...
+            'name', 'iti_pun', ...
+            'exitstate', 'iti');
+        
+        sma = add_state(sma, 'name', 'wait_for_cpoke1', 'self_timer', wait_for_cpoke1_tout, ...
+            'output_actions', {'DOut', pre_cpoke_led}, ...
+            'input_to_statechange', { ... %'Tup', 'center_2_side_gap' ; ...
+            'Chi', 'play_stimulus_sound'; ...
+            'Cin', 'play_stimulus_sound'; ...
+            'Lin', wcin_spoke_state; ...
+            'Rin', wcin_spoke_state; ...
+            });
+        
+
+        
+        sma = PunishInterface(obj, 'add_sma_states', 'CenterLightPun', sma, ...
+            'name', 'cl1_pun', ...
+            'exitstate', 'wait_for_cpoke1');
+        
+        % PLAY STIMULUS SOUND: 
+        % make sure the stimulus sound and the scheduled waves are off
+        sma = add_state(sma, 'name', 'play_stimulus_sound', 'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -StimulusSpecs.sound_id}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        sma = add_state(sma, 'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', snd_waves_off_cleanup}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        % set all sounds playing & jump to the state appropriate for 
+        % immediately after the first cpoke:
+        sma = add_state(sma, 'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', snd_waves_on}, ...
+            'input_to_statechange', {'Tup', stim_on_tup_state});
+        
+        
+        % set up one cpoke1 state that allows excursions of duration < LegalCBreak.        
+        % trigger the start of the timer:
+        sma = add_state(sma, 'name', 'cpoke1', 'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', 'cpoke_timer'; ...
+            'DOut', cpoke_led;}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        
+        % Nose is in:
+        sma = add_state(sma, 'self_timer', 1000, ...
+            'output_actions', {'DOut',          cpoke_led}, ...
+            'input_to_statechange', {'Clo', 'current_state+1'; ...
+            'Cout', 'current_state+1'; ...
+            'cpoke_timer_hi', nic_end_goto});
+        
+        % Nose just came out:
+        % Determine which LegalCBreak to use
+        sma = add_state(sma, 'self_timer', 1000, ...
+            'output_actions', {'DOut',          cpoke_led}, ...
+            'input_to_statechange', {'Cin', 'current_state-1'; ...
+            'min_rt_wave_lo', 'current_state+1'; ...
+            'min_rt_wave_hi', 'current_state+2'});
+        
+        % LegalCBreak states
+        sma = add_state(sma, 'self_timer', LegalCBreak+min_time, ...
+            'output_actions', {'DOut',          cpoke_led}, ...
+            'input_to_statechange', {'Cin', 'current_state-2'; ...
+            'Tup', violation_goto});
+        
+        sma = add_state(sma,  'self_timer', LegalCBreakRt+min_time, ...
+            'output_actions', {'DOut',          cpoke_led}, ...
+            'input_to_statechange', {'Cin', 'current_state-3'; ...
+            'Lin', nic_end_goto; ...
+            'Rin', nic_end_goto; ...
+            'Tup', nic_end_goto});
+        
+        sma = add_state(sma, 'name', 'WAIT_FOR_CENTER_NOSE_OUT', ...
+            'input_to_statechange', {'Clo', 'center_2_side_gap', ...
+            'Lin',  side_poke_while_WFCO, ...
+            'Rin',  side_poke_while_WFCO});
+        
+        sma = add_state(sma, 'name', 'PUNISH_WFCO', 'self_timer', pwfco_dur, ...
+            'output_actions', {'SoundOut', pwfco_id}, ...
+            'input_to_statechange', {'Tup', 'wait_for_center_nose_out', ...
+            'Cout', 'current_state+1'});
+        
+        sma = add_state(sma, 'self_timer', pwfco_dur, ...
+            'input_to_statechange', {'Tup', 'center_2_side_gap'});
+        
+        % temp_violation
+        switch(value(TempPunChoice)),
+            case 'reinit-able temp pun',
+                % First turn off stimulus sounds and stimulus waves
+                sma = add_state(sma, 'name', 'TEMP_VIOLATION', 'self_timer', min_time, ...
+                    'output_actions', {'SoundOut', -StimulusSpecs.sound_id ; ...
+                    'DOut',    cpoke_led ; ...
+                    'SchedWaveTrig', snd_cpoke_waves_off'}, ...
+                    'input_to_statechange', {'Tup', 'current_state+1'});
+                
+                sma = PunishInterface(obj, 'add_sma_states', 'RTempPun', sma, ...
+                    'exitstate', 'wait_for_cpoke1');
+                
+            case 'non-reinit temp pun',
+                % -- nose OUT:
+                % First turn off stimulus sounds and stimulus waves, and turn on violation wave (which turns on the violation sound):
+                sma = add_state(sma, 'name', 'TEMP_VIOLATION', 'self_timer', min_time, ...
+                    'output_actions', {'SoundOut', -StimulusSpecs.sound_id ; ...
+                    'DOut',    cpoke_led ; ...
+                    'SchedWaveTrig', snd_cpoke_waves_off'}, ...
+                    'input_to_statechange', {'Tup', 'current_state+1'; ...
+                    'Cin', 'current_state+2'});
+                % Now turn on violation wave (currently nose is OUT):
+                sma = add_state(sma, 'self_timer', min_time, ...
+                    'output_actions', {'DOut',    cpoke_led ; ...
+                    'SchedWaveTrig', 'violation'}, ...
+                    'input_to_statechange', {'Tup', 'current_state+2'; ...
+                    'Cin', 'current_state+3'});
+                % -- parallel states with nose IN:
+                
+                % Now turn on violation wave (currently nose is IN):
+                sma = add_state(sma, 'self_timer', min_time, ...
+                    'output_actions', {'DOut',    cpoke_led ; ...
+                    'SchedWaveTrig', 'violation'}, ...
+                    'input_to_statechange', {'Tup',  'current_state+2'; ...
+                    'Cout', 'current_state+1'});
+                
+                % ---
+                
+                % Then just wait to clean go back (currently nose is OUT):
+                sma = add_state(sma, 'output_actions', {'DOut', cpoke_led}, ...
+                    'input_to_statechange', {'violation_Out', 'wait_for_cpoke1'; ...
+                    'Cin',          'current_state+1'});
+                % Then just wait to clean go back (currently nose is IN):
+                sma = add_state(sma, 'output_actions', {'DOut', cpoke_led}, ...
+                    'input_to_statechange', {'violation_Out', 'play_stimulus_sound'; ...
+                    'Cout',         'current_state-1'});
+                
+                % -- END of CASE NON-REINIT TEMP PUN
+        end;
+        
+        % center to side gap
+        % these states are only reached when n_center_pokes == 1
+        sma = add_state(sma, 'name', 'center_2_side_gap', ...
+            'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', '-c2s_gap'; ...
+            'SoundOut',      nic_end_sound_id}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        if strcmp(StimulusSpecs.StimTiming, 'During Cpoke Only'),
+            % if we want the sounds to be turned off as soon as the center poke states are done,
+            % the desired behavior is that the sound is turned off with the
+            % scheduled wave, but this does not work on the rigs, so we have
+            % turn off the sound manually as well.
+            sma = add_state(sma, 'self_timer', min_time, ...
+                'output_actions', {'SchedWaveTrig', snd_cpoke_waves_off; ...
+                'SoundOut', -StimulusSpecs.sound_id;}, ...
+                'input_to_statechange', {'Tup', 'current_state+1'});
+        end;
+        sma = add_state(sma,  ...
+            'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', 'c2s_gap'}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        sma = add_state(sma,  ...
+            'input_to_statechange', {'c2s_gap_In', after_c2sgap_state; ...
+            'Cin', c2sgap_center_poke_state; ...
+            'Lin', c2sgap_lside_poke_state; ...
+            'Rin', c2sgap_rside_poke_state; ...
+            });
+        sma = add_state(sma, ...  % LEFT
+            'input_to_statechange', {'c2s_gap_In', c2sgap_left_response; ...
+            'Lout', 'current_state-1'; ...
+            });
+        sma = add_state(sma, ...  % RIGHT
+            'input_to_statechange', {'c2s_gap_In', c2sgap_right_response; ...
+            'Rout', 'current_state-2'; ...
+            });
+        
+        % c2s_2, where nothing is punished (or punishable)
+        sma = add_state(sma, 'name', 'center_2_side_gap_2', ...
+            'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', '-c2s_gap_2'}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        sma = add_state(sma, 'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', 'c2s_gap_2'}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        sma = add_state(sma, ...
+            'input_to_statechange', {'c2s_gap_2_In', 'wait_for_spoke'; ...
+            'Lin', 'current_state+1'; ...
+            'Rin', 'current_state+2'});
+        sma = add_state(sma, ... % LEFT
+            'input_to_statechange', {'c2s_gap_2_In', left_resp_state; ...
+            'Lout', 'current_state-1'; ...
+            });
+        sma = add_state(sma, ... % RIGHT
+            'input_to_statechange', {'c2s_gap_2_In', right_resp_state; ...
+            'Lout', 'current_state-2'; ...
+            });
+        
+        % c2s punishment states: first turn off the stimulus sound
+        sma = add_state(sma, 'name', 'c2s_pun', ...
+            'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -StimulusSpecs.sound_id}, ...
+            'input_to_statechange', {'Tup', 'c2s_pun2'});
+        % then add punishment states
+        
+        sma = PunishInterface(obj, 'add_sma_states', 'C2SPun', sma, ...
+            'name', 'c2s_pun2', ...
+            'exitstate', AfterC2SPunishment);
+        
+        % side poke
+        if WaitForCin,
+            sma = add_state(sma, 'name', 'wait_for_spoke', ...
+                'output_actions', {'DOut', side_led; ...
+                'SchedWaveTrig', wfsp_wave}, ...
+                'input_to_statechange', {'Lhi', left_resp_state; ...
+                'Rhi', right_resp_state; ...
+                });
+        else
+            sma = add_state(sma, 'name', 'wait_for_spoke', ...
+                'output_actions', {'DOut', side_led; ...
+                'SchedWaveTrig', wfsp_wave}, ...
+                'input_to_statechange', {'Lin', left_resp_state; ...
+                'Rin', right_resp_state; ...
+                });
+        end
+        
+        % error states
+        sma = add_state(sma, 'name', 'error_state1', ...
+            'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -StimulusSpecs.sound_id; ...
+            'SchedWaveTrig', snd_cpoke_waves_off;}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        sma = add_state(sma, 'self_timer', locked_snd_dur, ...
+            'output_actions', {'SoundOut', locked_snd}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        sma = add_state(sma, 'self_timer', max(min_time, value(error_delay)), ...
+            'input_to_statechange', {'Tup', 'error_state'});
+        
+        sma = PunishInterface(obj, 'add_sma_states', 'ErrorPun', sma, ...
+            'name', 'error_state', ...
+            'exitstate', 'clean_up_state');
+        
+        sma = add_state(sma, 'name', 'error_state2', ...
+            'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -StimulusSpecs.sound_id; ...
+            'SchedWaveTrig', snd_cpoke_waves_off;}, ...
+            'input_to_statechange', {'Cin', 'CLEAN_UP_STATE'});
+
+        if LEDtemp_pun,
+            sma = add_state(sma, 'name', 'temporary_punishment', 'self_timer', min_time, ...
+                'output_actions', {'SchedWaveTrig', 'temporary_punishment_lights_wave'}, ...
+                'input_to_statechange', {'Tup', 'current_state+1'});
+            
+            sma = PunishInterface(obj, 'add_sma_states', 'TimeOutPun', sma, ...
+                'name', 'temporary_punishment2', ...
+                'exitstate', 'wait_for_spoke');
+        else
+            sma = PunishInterface(obj, 'add_sma_states', 'TimeOutPun', sma, ...
+                'name', 'temporary_punishment', ...
+                'exitstate', 'wait_for_spoke');
+        end;
+        
+        % violation states
+        sma = add_state(sma, 'name', 'violation_state', ...
+            'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -StimulusSpecs.sound_id; ...
+            'SchedWaveTrig', snd_cpoke_waves_off_cleanup}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        
+        sma = add_state(sma, 'self_timer', reinit_dur, ...
+            'output_actions', {'SoundOut', violation_snd_id}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        
+        sma = add_state(sma, 'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -violation_snd_id}, ...
+            'input_to_statechange', {'Tup', 'clean_up_state'});
+        
+        
+        
+        % incorrect wait states
+        % trigger the wave that determines when the error sound is played
+        sma = add_state(sma, 'name', 'err_wait_wave_trig', 'self_timer', min_time,...
+            'output_actions', {'SchedWaveTrig', 'err_wait_wave'}, ...
+            'input_to_statechange', {'Tup', 'err_wait_state'});
+        
+        % this state allows the animal to wait for an error feedback
+        sma = add_state(sma, 'name', 'err_wait_state', ...
+            'output_actions',{'DOut',wait_led},...
+            'input_to_statechange', {wrong_out, 'temp_err_wait_viol', ...
+            'err_wait_wave_In', 'error_state', 'err_wait_wave_hi', 'error_state',...
+            correct_in, 'clean_up_state', 'Cin', center_from_wait_state });
+        
+        % allows the animal to temporarily violate waiting without changing
+        % the feedback timing
+
+        sma = add_state(sma, 'name', 'temp_err_wait_viol', ...
+            'self_timer', min_time + LegalWaitBreak, ...
+            'output_actions', {'DOut', err_wait_tempviol_side_led+waitviol_led}, ...
+            'input_to_statechange', {wrong_in, 'err_wait_state',...
+            'Cin', center_from_wait_viol_state,...
+            'Tup', 'err_wait_viol', ...
+            correct_in, 'CLEAN_UP_STATE'}); 
+
+        sma = add_state(sma, 'name', 'err_wait_viol',...
+            'output_actions', {'SchedWaveTrig','-err_wait_wave',...
+            'SoundOut', wait_viol_snd,...
+            'DOut',err_wait_viol_side_led+waitviol_led},...
+            'input_to_statechange',{'Cin',center_from_wait_viol_state,...
+            wrong_in, err_wait_viol_reinit_state, ...
+            correct_in, 'wait_reinit_pun'});
+
+        % correct wait states
+        sma = add_state(sma, 'name', 'wait_wave_trig', 'self_timer', min_time,...
+            'output_actions', {'SchedWaveTrig', 'wait_wave'}, ...
+            'input_to_statechange', {'Tup', 'hit_wait_state'});
+        
+        sma = add_state(sma, 'name', 'hit_wait_state', ...
+            'output_actions',{'DOut',wait_led},...
+            'input_to_statechange', {correct_out, 'temp_hit_wait_viol', ...
+            'wait_wave_In', reward_state, 'wait_wave_hi', reward_state,...
+            wrong_in, 'clean_up_state', 'Cin', center_from_wait_state });
+        
+        sma = add_state(sma, 'name', 'temp_hit_wait_viol',...
+            'self_timer', min_time + LegalWaitBreak, ...
+            'output_actions', {'DOut', hit_wait_tempviol_side_led+waitviol_led},...
+            'input_to_statechange', {correct_in, 'hit_wait_state',...
+            'Cin', center_from_wait_viol_state, ...
+            wrong_in, 'clean_up_state',...
+            'Tup','hit_wait_viol'});
+       
+        sma = add_state(sma, 'name', 'hit_wait_viol',...
+            'output_actions', {'SchedWaveTrig','-wait_wave',...
+            'DOut',hit_wait_viol_side_led+waitviol_led,...
+            'SoundOut', wait_viol_snd},...
+            'input_to_statechange',{'Cin',center_from_wait_viol_state,...
+            correct_in, hit_wait_viol_reinit_state, ...
+            wrong_in, 'wait_reinit_pun'});
+        
+        % state to punish wait reinitiation
+        sma = PunishInterface(obj, 'add_sma_states', 'WaitReinitPun', sma, ...
+            'name', 'wait_reinit_pun', ...
+            'exitstate', 'clean_up_state');
+        
+        % reward states
+        % even though we really don't need two of these reward states, they are
+        % kept here so it's easy to pick out left/right reward trials in
+        % pokesplot
+        sma = add_state(sma, 'name', 'left_reward', 'self_timer', locked_snd_dur, ...
+            'output_actions', {'SchedWaveTrig', ['direct_left_reward' swaves_to_add]; ...
+            'SoundOut', locked_snd}, ...
+            'input_to_statechange', {'Tup', 'hit_state'});
+        
+        sma = add_state(sma, 'name', 'right_reward', 'self_timer', locked_snd_dur, ...
+            'output_actions', {'SchedWaveTrig', ['direct_right_reward' swaves_to_add];
+            'SoundOut', locked_snd}, ...
+            'input_to_statechange', {'Tup', 'hit_state'});
+        
+        
+        % hit states
+        % allows rat to continue drinking for the time allotted in
+        % PenaltySection_DrinkTime
+        % First we just trigger the hit_state_timer:
+        sma = add_state(sma, 'name', 'HIT_STATE', 'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', 'hitstatetimer'}, ...
+            'input_to_statechange', {'Tup', 'current_state+2'});
+        
+        sma = add_state(sma, 'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', 'hitstatetimer'}, ...
+            'input_to_statechange', {'Tup', 'current_state+3'});
+        % Then we toggle back and forth between being in or out of the drink
+        % port:
+        sma = add_state(sma, 'input_to_statechange', ...
+            {'hitstatetimer_In', post_hit_state_in ; ...
+            correct_out, 'current_state+1'});
+        sma = add_state(sma, 'input_to_statechange', ...
+            {'hitstatetimer_In', post_hit_state_out; ...
+            correct_in, 'current_state-1'});
+        
+        sma = add_state(sma, 'name', 'DRINK_STATE', 'self_timer', min_time, ...
+            'input_to_statechange', {'Tup', post_drink_state});
+        
+        % next trial warning state
+        sma = add_state(sma, 'name', 'WARNING', 'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -StimulusSpecs.sound_id; ...
+            'SchedWaveTrig', snd_cpoke_waves_off}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        
+        sma = add_state(sma, 'self_timer', WarnDur, ...
+            'input_to_statechange', {'Tup', post_warning_state}, ...
+            'output_actions', {'SoundOut', warn_id});
+        
+        sma = add_state(sma, 'name', 'DANGER',  'self_timer', DangerDur, ...
+            'output_actions', {'SoundOut', danger_id}, ...
+            'input_to_statechange', {'Tup', 'clean_up_state', ...
+            'Lin', 'current_state+1', ...
+            'Cin', 'current_state+1', ...
+            'Rin', 'current_state+1'});
+        
+        sma = add_state(sma, 'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -danger_id}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        
+        sma = PunishInterface(obj, 'add_sma_states', 'PostDrinkPun', sma, 'name', 'mypun', ...
+            'exitstate', 'danger');
+
+        % Entry to soft_drink_state_in:
+        sma = add_state(sma, 'name', 'SOFT_DRINK_STATE', ...
+            'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', 'softdrinktimer'}, ...
+            'input_to_statechange', {'Tup', 'current_state+2'});
+        
+        % Entry to soft_drink_state_out:
+        sma = add_state(sma, ...
+            'self_timer', min_time, ...
+            'output_actions', {'SchedWaveTrig', 'softdrinktimer'}, ...
+            'input_to_statechange', {'Tup', 'current_state+2'});
+        
+        sma = add_state(sma, 'output_actions', {'SchedWaveTrig', '-sd_grace'}, ...
+            'input_to_statechange', {'softdrinktimer_In',      post_softdt, ...
+            correct_out,                'current_state+1', ...
+            'Cin',                    post_softdt, ...
+            wrong_in,          post_softdt, ...
+            });
+        sma = add_state(sma, 'self_timer', min_time, 'output_actions', {'SchedWaveTrig', 'sd_grace'}, ...
+            'input_to_statechange', {'Tup',                    'current_state+1' ; });
+        sma = add_state(sma, ...
+            'input_to_statechange', {'softdrinktimer_In', post_softdt, ...
+            correct_in,            'current_state-2', ...
+            'Cin',               post_softdt, ...
+            wrong_in,     post_softdt, ...
+            'sd_grace_In',       post_softdt});
+        
+        
+        
+        
+        % clean up any remaining sounds still playing, then jump to next
+        % trial
+        
+        
+        sma = add_state(sma, 'name', 'CLEAN_UP_STATE', ...
+            'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -StimulusSpecs.sound_id; ...
+            'SchedWaveTrig', snd_cpoke_waves_off_cleanup}, ...
+            'input_to_statechange', {'Tup', 'current_state+1'});
+        
+        sma = add_state(sma,  ...
+            'self_timer', min_time, ...
+            'output_actions', {'SoundOut', -danger_id}, ...
+            'input_to_statechange', {'Tup', 'check_next_trial_ready'});
+        
+        % add states to the 'prepare_next_trial' states:
+        dispatcher('send_assembler', sma, prep_next_trial_states);
+    case 'reinit',
+        
+        % Delete all SoloParamHandles who belong to this object and whose
+        % fullname starts with the name of this mfile:
+        delete_sphandle('owner', ['^@' class(obj) '$'], ...
+            'fullname', ['^' mfilename]);
+        
+        % Reinitialise at the original GUI position and figure:
+        feval(mfilename, obj, 'init');
+        
+        
+        
+end;

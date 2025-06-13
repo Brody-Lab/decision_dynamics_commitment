@@ -1,0 +1,15 @@
+global state_machine_server
+fsm=RTLSM(state_machine_server);
+mat=zeros(201,10);
+on=[2:2:201];off=[3:2:201];
+mat(:,7)=[1:201];mat(1,7)=0;mat(end,7)=200;
+mat(off,8)=1;
+
+mat(on,8)=0.15;
+mat(on,9)=21;
+
+fsm=ForceState(fsm,0);
+SetStateMatrix(fsm,mat);
+
+Run(fsm);
+ForceState(fsm,1);

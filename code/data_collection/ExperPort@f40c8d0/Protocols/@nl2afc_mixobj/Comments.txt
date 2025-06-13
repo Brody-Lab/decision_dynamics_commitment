@@ -1,0 +1,1 @@
+This is a protocol for odor 2AFC of different mixtures with one bank of odor channels.
