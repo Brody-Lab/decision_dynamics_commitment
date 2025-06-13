@@ -1,6 +1,0 @@
-[submodule "code/data_collection/ExperPort"]
-	path = code/data_collection/ExperPort
-	url = https://github.com/Brody-Lab/ExperPort.git
-[submodule "code/data_collection/Protocols"]
-	path = code/data_collection/Protocols
-	url = https://github.com/Brody-Lab/Protocols.git
