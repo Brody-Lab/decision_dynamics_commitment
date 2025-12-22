@@ -17,11 +17,17 @@ This spreadsheet lists decision commitment times from Luo & Kim (2025). Each row
 * **`gamma` (\(\gamma\))**: The logarithm of the ratio of the right to left click rates used to generate the stochastic click stimulus on each trial. The total click rate is always 40 clicks/s, so if \(R\) is the right click rate and \(L\) is the left click rate,
 
 $$
-
-R + L = 40 \\
-\gamma = log (R/L) \\
-L\exp(\gamma) = R \\
-L = \frac{40}{1 + \exp(\gamma)} \\
+R + L = 40
+$$
+$$
+\gamma = log (R/L)
+$$
+$$
+L\exp(\gamma) = R
+$$
+$$
+L = \frac{40}{1 + \exp(\gamma)}
+$$
+$$
 R = \frac{40\exp(\gamma)} {1+\exp(\gamma)}
-
 $$
