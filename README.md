@@ -8,3 +8,5 @@ The repository is organized into three main directories:
 * `data/`: Processed data files required to reproduce the analyses and figures, along with a link to the Dryad repository housing the raw data
 
 * `figures/`: Editable vector graphics source files for the final figures.
+
+Code and instructions for running the multi-mode drift-diffusion model (MMMDDM) can be found at https://github.com/Brody-Lab/fhmddm
