@@ -1,4 +1,4 @@
-data/MMDDM_output
+data/MMDDM/
 
 # Created by https://www.gitignore.io/api/windows
 # Edit at https://www.gitignore.io/?templates=windows
