@@ -2,6 +2,12 @@
 # Processed data
 For reproducing the figures in the manuscript, processed data files are stored within this repository.
 
+## Large, processed data 
+Some plots depend on data files that are too large to be hosted on GitHub. For these cases (such as Figure 5a), a highly processed version of the data is uploaded to GitHub instead.
+
+### MMDDM
+To reproduce plots directly from the output of the multi-mode drift-diffusion model (MMDDM), please download the files from the following Google Drive folder: https://drive.google.com/drive/folders/1jD_hj9qfBm0Whw6KWi_7k0WjaCwRNyTF and place them into the following local directory: `/decision_dynamics_commitment/data/MMDDM`
+
 # Raw data
 
 Due to the large size of the raw data, they are stored at [https://doi.org/10.5061/dryad.sj3tx96dm](https://doi.org/10.5061/dryad.sj3tx96dm)
